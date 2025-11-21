@@ -1265,7 +1265,7 @@ function App() {
   const OTHER_SYMPTOMS = filteredSymptoms.filter(s => s.category === 'other');
 
   return (
-    <div className="flex flex-col h-screen w-full mx-auto overflow-hidden font-sans text-slate-900 bg-slate-50">
+    <div className="flex flex-col h-[100dvh] w-full mx-auto overflow-hidden font-sans text-slate-900 bg-slate-50">
       {/* Sticky Header with Glassmorphism */}
       <div className="sticky top-0 z-40 w-full bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-200">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -1307,10 +1307,10 @@ function App() {
         
         {stage === 'selection' ? (
             /* --- DASHBOARD VIEW --- */
-            <div className="animate-fade-in pb-20">
+            <div className="animate-fade-in pb-40"> {/* Increased padding for mobile */}
                 
                 {/* Hero / Search Section */}
-                <div className="bg-teal-700 px-4 pt-10 pb-24 relative overflow-hidden bg-gradient-to-br from-teal-700 to-teal-900">
+                <div className="bg-teal-700 px-4 pt-10 pb-12 relative overflow-hidden bg-gradient-to-br from-teal-700 to-teal-900">
                     <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none mix-blend-overlay">
                          <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0 100 C 20 0 50 0 100 100 Z" fill="white" /></svg>
                     </div>
@@ -1333,20 +1333,25 @@ function App() {
                     </div>
                 </div>
 
-                {/* Sticky Category Nav */}
-                <div className="sticky top-[60px] z-30 bg-slate-50/95 backdrop-blur-md border-b border-slate-200/60 px-4 py-3 overflow-x-auto flex gap-2 justify-start md:justify-center -mt-10 md:-mt-0 rounded-t-3xl md:rounded-none shadow-sm no-scrollbar">
-                     <button onClick={() => scrollToSection(emergencyRef)} className="shrink-0 px-4 py-1.5 rounded-full bg-red-50 text-red-600 font-bold text-[11px] uppercase tracking-wider border border-red-100 hover:bg-red-100 transition-colors shadow-sm">Emergency</button>
-                     <button onClick={() => scrollToSection(commonRef)} className="shrink-0 px-4 py-1.5 rounded-full bg-teal-50 text-teal-600 font-bold text-[11px] uppercase tracking-wider border border-teal-100 hover:bg-teal-100 transition-colors shadow-sm">Common Side Effects</button>
-                     <button onClick={() => scrollToSection(otherRef)} className="shrink-0 px-4 py-1.5 rounded-full bg-indigo-50 text-indigo-600 font-bold text-[11px] uppercase tracking-wider border border-indigo-100 hover:bg-indigo-100 transition-colors shadow-sm">General Symptoms</button>
+                {/* Static Category Nav - Anchored, not floating */}
+                <div className="bg-white border-b border-slate-100 py-4 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] relative z-20">
+                    <div className="max-w-5xl mx-auto px-4">
+                        <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar pb-1">
+                             <span className="text-xs font-bold text-slate-400 uppercase mr-2 shrink-0 hidden sm:inline-block">Jump to:</span>
+                             <button onClick={() => scrollToSection(emergencyRef)} className="shrink-0 px-4 py-2 rounded-full bg-red-50 text-red-600 font-bold text-xs uppercase tracking-wider border border-red-100 hover:bg-red-100 transition-colors shadow-sm">Emergency</button>
+                             <button onClick={() => scrollToSection(commonRef)} className="shrink-0 px-4 py-2 rounded-full bg-teal-50 text-teal-600 font-bold text-xs uppercase tracking-wider border border-teal-100 hover:bg-teal-100 transition-colors shadow-sm">Common Side Effects</button>
+                             <button onClick={() => scrollToSection(otherRef)} className="shrink-0 px-4 py-2 rounded-full bg-indigo-50 text-indigo-600 font-bold text-xs uppercase tracking-wider border border-indigo-100 hover:bg-indigo-100 transition-colors shadow-sm">General Symptoms</button>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Cards Container */}
-                <div className="max-w-5xl mx-auto px-4 mt-8 relative z-10">
+                <div className="max-w-5xl mx-auto px-4 mt-8 relative z-10 space-y-12">
                     
                     {/* Emergency Section */}
                     {(URGENT_SYMPTOMS.length > 0 || searchQuery === '') && (
-                        <div ref={emergencyRef} className="mb-10 scroll-mt-28">
-                            <div className="flex items-center mb-4 pb-2">
+                        <div ref={emergencyRef} className="scroll-mt-32">
+                            <div className="flex items-center mb-4 pb-2 border-b border-slate-100">
                                 <span className="bg-red-100 text-red-600 p-1.5 rounded-lg mr-3"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg></span>
                                 <h3 className="text-sm font-bold text-slate-600 uppercase tracking-widest">Emergency Symptoms</h3>
                             </div>
@@ -1361,8 +1366,8 @@ function App() {
 
                     {/* Common Section */}
                     {(COMMON_SYMPTOMS.length > 0 || searchQuery === '') && (
-                        <div ref={commonRef} className="mb-10 scroll-mt-28">
-                            <div className="flex items-center mb-4 pb-2">
+                        <div ref={commonRef} className="scroll-mt-32">
+                            <div className="flex items-center mb-4 pb-2 border-b border-slate-100">
                                 <span className="bg-teal-100 text-teal-600 p-1.5 rounded-lg mr-3"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg></span>
                                 <h3 className="text-sm font-bold text-slate-600 uppercase tracking-widest">Common Side Effects</h3>
                             </div>
@@ -1377,8 +1382,8 @@ function App() {
 
                     {/* Other Section */}
                     {(OTHER_SYMPTOMS.length > 0 || searchQuery === '') && (
-                        <div ref={otherRef} className="mb-12 scroll-mt-28">
-                            <div className="flex items-center mb-4 pb-2">
+                        <div ref={otherRef} className="scroll-mt-32">
+                            <div className="flex items-center mb-4 pb-2 border-b border-slate-100">
                                 <span className="bg-indigo-100 text-indigo-600 p-1.5 rounded-lg mr-3"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg></span>
                                 <h3 className="text-sm font-bold text-slate-600 uppercase tracking-widest">General & Other Symptoms</h3>
                             </div>
@@ -1392,7 +1397,7 @@ function App() {
                     )}
                     
                     <div className="text-center border-t border-slate-200 pt-10 pb-8">
-                        <p className="text-xs text-slate-400 mb-1">OncoLife Triage Protocol v1.2 • 27 Clinical Pathways Loaded</p>
+                        <p className="text-xs text-slate-400 mb-1">OncoLife Triage Protocol v1.3 • 27 Clinical Pathways Loaded</p>
                         <p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">OncoLife is Powered by KanasuLabs | 2025</p>
                     </div>
                 </div>

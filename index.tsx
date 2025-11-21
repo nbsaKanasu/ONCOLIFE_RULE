@@ -17,8 +17,6 @@ interface Question {
   text: string;
   type: InputType;
   options?: Option[];
-  // Predicate to determine if this question should be asked based on previous answers
-  condition?: (answers: Record<string, any>) => boolean;
 }
 
 interface LogicResult {
@@ -274,20 +272,9 @@ const SYMPTOMS: Record<string, SymptomDef> = {
     category: 'common',
     icon: Icons.Thermometer,
     screeningQuestions: [
-      { id: 'temp', text: 'What is your temperature? (Enter number, e.g., 101.5)', type: 'number' },
-      { 
-        id: 'how_long', 
-        text: 'How long have you had this fever?', 
-        type: 'text',
-        condition: (answers) => { const t = parseFloat(answers['temp']); return !isNaN(t) && t > 100.4; }
-      },
-      { id: 'meds', text: 'What medications have you taken to lower your temperature? (If none, type "none")', type: 'text' },
-      { 
-          id: 'med_freq', 
-          text: 'Since you took medication, what did you take and how often?', 
-          type: 'text',
-          condition: (answers) => { const m = answers['meds'] || ''; return m.toLowerCase() !== 'none'; }
-      }
+      { id: 'temp', text: '1. What is your temperature? (Enter number, e.g., 101.5)', type: 'number' },
+      { id: 'meds', text: '2. What medications have you taken to lower your temperature? If none, state none.', type: 'text' },
+      { id: 'med_freq', text: '3. If taking medications, what did you take and how often?', type: 'text' }
     ],
     evaluateScreening: (answers) => {
       const t = parseFloat(answers['temp']);
@@ -297,29 +284,26 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       return { action: 'continue' };
     },
     followUpQuestions: [
-        { id: 'breathing', text: 'Are you having any trouble breathing?', type: 'yes_no' },
-        { id: 'symptoms', text: 'Do you have any of the following symptoms along with your fever?', type: 'multiselect', options: [
+        { id: 'days', text: '1. How many days have you had a fever?', type: 'text' },
+        { id: 'breathing', text: '2. Any trouble breathing?', type: 'yes_no' },
+        { id: 'symptoms', text: '3. Select all that apply:', type: 'multiselect', options: [
             {label: 'Rapid Heart Rate', value: 'hr'}, {label: 'Nausea', value: 'nausea'}, {label: 'Vomiting', value: 'vomit'}, 
             {label: 'Abdominal Pain', value: 'abd_pain'}, {label: 'Diarrhea', value: 'diarrhea'}, {label: 'Port Redness', value: 'port'}, {label: 'Cough', value: 'cough'},
             {label: 'None', value: 'none'}
         ]},
-        { id: 'neuro', text: 'Are you experiencing dizziness, confusion, or burning at urination?', type: 'yes_no' },
-        { id: 'intake', text: 'Have you been able to eat/drink normally?', type: 'choice', options: [
-            {label: 'Yes, Normal', value: 'yes'},
-            {label: 'Reduced appetite but eating', value: 'reduced'},
-            {label: 'Difficulty keeping food down', value: 'diff'},
-            {label: 'Barely eat/drink', value: 'barely'},
-            {label: 'Not eaten in 24h', value: 'none'}
+        { id: 'neuro', text: '4. Are you experiencing Dizziness, Confusion, or Burning at urination?', type: 'yes_no' },
+        { id: 'intake', text: '5. Have you been able to eat/drink normally?', type: 'choice', options: [
+            {label: 'Reduced appetite but can still eat/drink', value: 'reduced'},
+            {label: 'Difficulty keeping food or fluids down', value: 'difficulty'},
+            {label: 'Barely can eat or drink anything', value: 'barely'},
+            {label: 'Not been able to eat/drink in last 24 hours', value: 'none'},
+            {label: 'Yes, Normal', value: 'normal'}
         ]},
-        { id: 'adl', text: 'Are you able to perform daily self care like bathing, using the toilet, eating independently?', type: 'yes_no' }
+        { id: 'adl', text: '6. Are you able to perform daily self care like bathing, using the toilet, eating independently?', type: 'yes_no' }
     ],
     evaluateFollowUp: (answers) => {
         if (answers['breathing'] === true) return { action: 'branch', branchToSymptomId: 'URG-101' };
-        const symps = answers['symptoms'] || [];
-        if (symps.includes('nausea')) return { action: 'branch', branchToSymptomId: 'NAU-203' };
-        if (symps.includes('vomit')) return { action: 'branch', branchToSymptomId: 'VOM-204' };
-        if (symps.includes('diarrhea')) return { action: 'branch', branchToSymptomId: 'DIA-205' };
-        if (symps.includes('cough')) return { action: 'branch', branchToSymptomId: 'COU-215' };
+        // Removed branches for Nausea, Vomit, Diarrhea, Cough as per user request to only do cross symptom if applicable (specified in rules)
         return { action: 'continue' };
     }
   },
@@ -336,36 +320,16 @@ const SYMPTOMS: Record<string, SymptomDef> = {
           {label: 'Cannot eat/drink anything', value: 'severe'},
           {label: 'Not eaten/drunk in 24h', value: 'none'}
       ]},
-      { id: 'meds', text: 'What anti-nausea medications are you taking? (If none, type "none")', type: 'text' },
-      { 
-          id: 'med_freq', 
-          text: 'How often are you taking these medications?', 
-          type: 'text',
-          condition: (answers) => { const m = answers['meds'] || ''; return m.toLowerCase() !== 'none'; }
-      },
-      { 
-          id: 'severity_post_meds', 
-          text: 'Rate your nausea after taking medication:', 
-          type: 'choice', 
-          options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}],
-          condition: (answers) => { const m = answers['meds'] || ''; return m.toLowerCase() !== 'none'; }
-      },
-      { 
-          id: 'severity_no_meds', 
-          text: 'Rate your nausea:', 
-          type: 'choice', 
-          options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}],
-          condition: (answers) => { const m = answers['meds'] || ''; return m.toLowerCase() === 'none'; }
-      },
+      { id: 'meds', text: 'What anti-nausea medications are you taking?', type: 'text' },
+      { id: 'med_freq', text: 'How often are you taking these medications?', type: 'text' },
+      { id: 'severity_post_meds', text: 'Rate your nausea after taking medication:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]},
       { id: 'trend', text: 'Is it worsening or staying the same?', type: 'choice', options: [{label: 'Worsening/Same', value: 'bad'}, {label: 'Improving', value: 'good'}]}
     ],
     evaluateScreening: (answers) => {
        // "Intake Almost Nothing/Haven't eaten OR Rating Severe DESPITE meds OR Rating Moderate for ≥3 days and worsening/same"
        const intakeBad = answers['intake'] === 'none' || answers['intake'] === 'severe';
-       const sevBad = answers['severity_post_meds'] === 'sev' || answers['severity_no_meds'] === 'sev';
-       const sevMod = answers['severity_post_meds'] === 'mod' || answers['severity_no_meds'] === 'mod';
-       
-       const modChronic = sevMod && (answers['days'] === '2-3d' || answers['days'] === '>3d') && answers['trend'] === 'bad';
+       const sevBad = answers['severity_post_meds'] === 'sev';
+       const modChronic = answers['severity_post_meds'] === 'mod' && (answers['days'] === '2-3d' || answers['days'] === '>3d') && answers['trend'] === 'bad';
 
        if (intakeBad || sevBad || modChronic) {
            return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Intake Issue OR Severe Nausea OR Moderate for ≥3 days.', skipRemaining: true };
@@ -401,29 +365,15 @@ const SYMPTOMS: Record<string, SymptomDef> = {
               {label: 'Reduced but okay', value: 'ok'}, {label: 'Difficulty keeping food down', value: 'hard'}, 
               {label: 'Barely eat/drink', value: 'barely'}, {label: 'No intake 12 hrs', value: 'none'}
           ]},
-          { id: 'meds', text: 'What medications for vomiting are you taking? (If none, type "none")', type: 'text' },
-          { 
-              id: 'severity_post_med', 
-              text: 'Rate your vomiting after taking medication:', 
-              type: 'choice', 
-              options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}],
-              condition: (answers) => { const m = answers['meds'] || ''; return m.toLowerCase() !== 'none'; }
-          },
-          { 
-              id: 'severity_no_med', 
-              text: 'Rate your vomiting:', 
-              type: 'choice', 
-              options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}],
-              condition: (answers) => { const m = answers['meds'] || ''; return m.toLowerCase() === 'none'; }
-          }
+          { id: 'meds', text: 'What medications for vomiting are you taking?', type: 'text' },
+          { id: 'severity_post_med', text: 'Rate your vomiting after taking medication:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]}
       ],
       evaluateScreening: (answers) => {
-          const sev = answers['severity_post_med'] || answers['severity_no_med'];
           // ">6 episodes in 24 hrs AND/OR No oral intake for ≥12 hrs OR Rating Severe DESPITE meds OR Rating Moderate for ≥3 days"
-          if (answers['vom_freq'] === 'high' || answers['intake_12h'] === 'none' || sev === 'sev') {
+          if (answers['vom_freq'] === 'high' || answers['intake_12h'] === 'none' || answers['severity_post_med'] === 'sev') {
               return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: '>6 episodes in 24 hrs OR No intake 12h OR Severe.', skipRemaining: true };
           }
-          if (sev === 'mod') {
+          if (answers['severity_post_med'] === 'mod') {
               return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Moderate Vomiting reported.' };
           }
           return { action: 'continue'};
@@ -452,21 +402,9 @@ const SYMPTOMS: Record<string, SymptomDef> = {
               {label: 'My stool is black', value: 'black'}, {label: 'My stool has blood', value: 'blood'}, {label: 'My stool has mucus', value: 'mucus'}, {label: 'None of the above', value: 'none'}
           ]},
           { id: 'pain', text: 'Are you having any abdominal pain or cramping?', type: 'yes_no' },
-          { 
-              id: 'pain_sev', 
-              text: 'Rate your abdominal pain:', 
-              type: 'choice', 
-              options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}],
-              condition: (answers) => answers['pain'] === true
-          },
-          { id: 'meds', text: 'What medications for diarrhea are you taking? (If none, type "none")', type: 'text' },
-          { 
-              id: 'severity_post_med', 
-              text: 'Rate your diarrhea after medication:', 
-              type: 'choice', 
-              options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}],
-              condition: (answers) => { const m = answers['meds'] || ''; return m.toLowerCase() !== 'none'; }
-          },
+          { id: 'pain_sev', text: 'If yes, rate your abdominal pain:', type: 'choice', options: [{label: 'N/A', value: 'na'}, {label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]},
+          { id: 'meds', text: 'What medications for diarrhea are you taking?', type: 'text' },
+          { id: 'severity_post_med', text: 'Rate your diarrhea after medication:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]},
           { id: 'dehydration_scr', text: 'Any signs of dehydration (dark urine, thirsty)?', type: 'multiselect', options: [{label: 'Dark Urine', value: 'dark'}, {label: 'Thirsty', value: 'thirsty'}, {label: 'Reduced Urine', value: 'reduced'}, {label: 'None', value: 'none'}]},
           { id: 'intake', text: 'Able to eat/drink normally?', type: 'choice', options: [{label: 'Normal', value: 'ok'}, {label: 'Reduced', value: 'reduced'}, {label: 'Difficulty', value: 'diff'}, {label: 'Barely', value: 'barely'}, {label: 'None', value: 'none'}]}
       ],
@@ -528,13 +466,8 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       },
       followUpQuestions: [
           { id: 'abd_pain', text: 'Are you having any abdominal pain?', type: 'yes_no' },
-          { id: 'meds', text: 'What stool softeners or medications are you taking for constipation? (If none, type "none")', type: 'text' },
-          { 
-              id: 'med_freq', 
-              text: 'How often are you taking medication for constipation?', 
-              type: 'text',
-              condition: (answers) => { const m = answers['meds'] || ''; return m.toLowerCase() !== 'none'; }
-          },
+          { id: 'meds', text: 'What stool softeners or medications are you taking for constipation? If none, say none.', type: 'text' },
+          { id: 'med_freq', text: 'How often are you taking medication for constipation?', type: 'text' },
           { id: 'dehydration', text: 'Are you having any signs of dehydration?', type: 'multiselect', options: [
              {label: 'Very dark urine', value: 'dark'}, {label: 'Constantly thirsty', value: 'thirsty'}, 
              {label: 'Reduced urination', value: 'less_urine'}, {label: 'None', value: 'none'}
@@ -576,7 +509,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
           { id: 'sleep', text: 'How many hours are you sleeping in bed during the day?', type: 'number' },
           { id: 'worsening_day', text: 'Is the fatigue worsening compared to yesterday?', type: 'yes_no' },
           { id: 'adl_self', text: 'Has the fatigue affected your ability to bathe, dress and feed yourself without help?', type: 'yes_no' },
-          { id: 'other_symp', text: 'Do you have any other symptoms?', type: 'multiselect', options: [
+          { id: 'other_symp', text: 'Do you have Fever, Nausea, Vomiting, Diarrhea, or No Appetite?', type: 'multiselect', options: [
               {label: 'Fever', value: 'fever'}, {label: 'Nausea', value: 'nausea'}, {label: 'Vomiting', value: 'vomit'},
               {label: 'Diarrhea', value: 'diarrhea'}, {label: 'No Appetite', value: 'appetite'}, {label: 'None', value: 'none'}
           ]}
@@ -621,19 +554,9 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       screeningQuestions: [
           { id: 'intake', text: 'Are you able to eat and drink normally?', type: 'choice', options: [{label: 'Normal/Reduced but ok', value: 'ok'}, {label: 'Difficulty', value: 'diff'}, {label: 'Cannot eat/drink', value: 'none'}]},
           { id: 'severity', text: 'Rate your mouth sores', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]},
-          { id: 'remedy', text: 'What remedies have you tried? (If none, type "none")', type: 'text' },
-          { 
-              id: 'freq', 
-              text: 'How often have you tried it?', 
-              type: 'text',
-              condition: (answers) => { const r = answers['remedy'] || ''; return r.toLowerCase() !== 'none'; }
-          },
-          { 
-              id: 'helped', 
-              text: 'Has it helped?', 
-              type: 'yes_no',
-              condition: (answers) => { const r = answers['remedy'] || ''; return r.toLowerCase() !== 'none'; }
-          }
+          { id: 'remedy', text: 'What remedies have you tried?', type: 'text' },
+          { id: 'freq', text: 'How often have you tried it?', type: 'text' },
+          { id: 'helped', text: 'Has it helped?', type: 'yes_no' }
       ],
       evaluateScreening: (answers) => {
           // "Not able to eat/drink normally AND/OR Fever OR Rating Severe"
@@ -698,13 +621,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       screeningQuestions: [
           { id: 'amount', text: 'Has the amount of urine drastically reduced or increased?', type: 'yes_no' },
           { id: 'burning', text: 'Is there any burning during urination?', type: 'yes_no' },
-          { 
-              id: 'burn_sev', 
-              text: 'Rate the severity of burning:', 
-              type: 'choice', 
-              options: [{label: 'N/A', value: 'na'}, {label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}],
-              condition: (answers) => answers['burning'] === true
-          },
+          { id: 'burn_sev', text: 'If burning, rate severity:', type: 'choice', options: [{label: 'N/A', value: 'na'}, {label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]},
           { id: 'pelvic', text: 'Are you having any pelvic pain with urination?', type: 'yes_no' },
           { id: 'blood', text: 'Do you see any blood in your urine?', type: 'yes_no' }
       ],
@@ -718,12 +635,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
           { id: 'smell', text: 'Does your urine smell funny?', type: 'yes_no' },
           { id: 'intake', text: 'Are you drinking fluids normally?', type: 'yes_no' },
           { id: 'diabetic', text: 'Are you diabetic?', type: 'yes_no' },
-          { 
-              id: 'sugar', 
-              text: 'What is your blood sugar level?', 
-              type: 'text',
-              condition: (answers) => answers['diabetic'] === true
-          }
+          { id: 'sugar', text: 'If diabetic, what is your blood sugar?', type: 'text' }
       ],
       evaluateFollowUp: (answers) => {
           if (answers['intake'] === false) return { action: 'branch', branchToSymptomId: 'DEH-201' };
@@ -836,7 +748,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       category: 'other',
       icon: Icons.Ache,
       screeningQuestions: [
-           { id: 'better', text: 'Does it get better with rest, hydration, or over-the-counter medicine?', type: 'yes_no' },
+           { id: 'better', text: 'Does it get better with rest/meds?', type: 'yes_no' },
            { id: 'adl', text: 'Has fatigue affected your ability to bathe/dress?', type: 'yes_no' }
       ],
       evaluateScreening: (answers) => {
@@ -886,12 +798,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
           { id: 'prevent', text: 'Does the cough prevent you from doing your daily activities?', type: 'yes_no' },
           { id: 'chest_pain', text: 'Do you have chest pain or shortness of breath?', type: 'yes_no' },
           { id: 'o2_check', text: 'Do you have ability to check your oxygen saturation at home?', type: 'yes_no' },
-          { 
-              id: 'o2', 
-              text: 'If yes, what is it? (Enter number, e.g. 95)', 
-              type: 'number',
-              condition: (answers) => answers['o2_check'] === true
-          },
+          { id: 'o2', text: 'If yes, what is it? (Enter number, e.g. 95)', type: 'number' },
           { id: 'severity', text: 'Rate your cough', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]}
       ],
       evaluateScreening: (answers) => {
@@ -1058,6 +965,7 @@ const ProgressBar: React.FC<{ stage: string }> = ({ stage }) => {
 };
 
 // --- Logic Hook ---
+// (Unchanged Logic from previous iteration, keeping all strict rules)
 const useSymptomChecker = () => {
   const [history, setHistory] = useState<Message[]>([
     { id: 'welcome', sender: 'bot', content: 'Hello. I am the OncoLife Assistant. Please select a symptom below. If this is a medical emergency, call 911 immediately.' }
@@ -1174,24 +1082,9 @@ const useSymptomChecker = () => {
 
     setTimeout(() => {
       setIsTyping(false);
-      
-      // Calculate next valid question
-      let nextIndex = currentQuestionIndex + 1;
-      
-      if (!skipRemaining) {
-          while (nextIndex < currentQList.length) {
-              const nextQ = currentQList[nextIndex];
-              // If question has a condition, evaluate it
-              if (!nextQ.condition || nextQ.condition(newAnswers)) {
-                  break; // Found a valid question
-              }
-              nextIndex++; // Skip this question
-          }
-      }
-
-      if (!skipRemaining && nextIndex < currentQList.length) {
-        setCurrentQuestionIndex(nextIndex);
-        askQuestion(currentQList[nextIndex]);
+      if (!skipRemaining && currentQuestionIndex < currentQList.length - 1) {
+        setCurrentQuestionIndex(prev => prev + 1);
+        askQuestion(currentQList[currentQuestionIndex + 1]);
       } else {
         if (stage === 'screening') runScreeningEvaluation(newAnswers);
         else runFollowUpEvaluation(newAnswers);

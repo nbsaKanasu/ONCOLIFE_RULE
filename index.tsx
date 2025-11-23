@@ -914,7 +914,7 @@ const TypingIndicator = () => (
   </div>
 );
 
-const SymptomCard: React.FC<{ symptom: SymptomDef, onClick: (id: string) => void, variant: 'emergency' | 'common' | 'other' }> = ({ symptom, onClick, variant }) => {
+const SymptomCard: React.FC<{ symptom: SymptomDef, onClick: (id: string) => void, variant: 'emergency' | 'common' | 'other', result?: ActionLevel }> = ({ symptom, onClick, variant, result }) => {
     const baseClasses = "p-5 rounded-2xl border transition-all duration-300 transform hover:-translate-y-1 active:scale-95 flex flex-col justify-between w-full text-left group relative overflow-hidden min-h-[150px]";
     const styles = {
         emergency: "bg-white border-slate-100 shadow-sm hover:shadow-lg hover:border-red-200",
@@ -924,15 +924,27 @@ const SymptomCard: React.FC<{ symptom: SymptomDef, onClick: (id: string) => void
     
     const iconBg = variant === 'emergency' ? 'bg-red-50 text-red-600 group-hover:bg-red-100' : variant === 'common' ? 'bg-teal-50 text-teal-600 group-hover:bg-teal-100' : 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-100';
 
+    // Result badge
+    let badge = null;
+    if (result) {
+        if (result === 'call_911') badge = <span className="absolute top-3 right-3 bg-red-100 text-red-700 text-[10px] font-bold px-2 py-1 rounded-full border border-red-200">Emergency</span>;
+        else if (result === 'notify_care_team') badge = <span className="absolute top-3 right-3 bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-1 rounded-full border border-amber-200">Alert</span>;
+        else if (result === 'refer_provider') badge = <span className="absolute top-3 right-3 bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded-full border border-blue-200">Consult</span>;
+        else badge = <span className="absolute top-3 right-3 bg-green-100 text-green-700 text-[10px] font-bold px-2 py-1 rounded-full border border-green-200">Checked</span>;
+    }
+
     return (
         <button onClick={() => onClick(symptom.id)} className={`${baseClasses} ${styles[variant]}`}>
+            {badge}
             <div className="flex justify-between items-start w-full">
                  <div className={`p-3.5 rounded-2xl transition-colors ${iconBg}`}>
                     {symptom.icon}
                 </div>
-                <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                   <span className="text-slate-400 font-bold text-lg leading-none">➔</span>
-                </div>
+                {!result && (
+                    <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <span className="text-slate-400 font-bold text-lg leading-none">➔</span>
+                    </div>
+                )}
             </div>
             <div className="mt-4">
                 <span className="font-bold text-slate-800 text-lg block leading-tight mb-1 group-hover:text-teal-700 transition-colors">{symptom.name}</span>
@@ -1168,6 +1180,18 @@ const useSymptomChecker = () => {
         return msg;
     }));
 
+    // Explicitly output summary for current symptom
+    if (currentSymptomId) {
+        const result = symptomResults[currentSymptomId] || 'none';
+        const name = SYMPTOMS[currentSymptomId].name;
+        let statusText = "Safe / No Action";
+        if (result === 'call_911') statusText = "Emergency - Call 911";
+        else if (result === 'notify_care_team') statusText = "Notify Care Team";
+        else if (result === 'refer_provider') statusText = "Contact Provider";
+
+        addMessage(`${name} Assessment Complete. Status: ${statusText}`, 'bot', false, true);
+    }
+
     setStage('complete');
   };
 
@@ -1183,6 +1207,13 @@ const useSymptomChecker = () => {
     setHistory([{ id: Date.now().toString(), sender: 'bot', content: 'Hello. I am the OncoLife Assistant. Please select a symptom below.' }]);
   };
 
+  const continueSession = () => {
+      setStage('selection');
+      setCurrentSymptomId(null);
+      setAnswers({});
+      addMessage("Please select another symptom from the dashboard.", 'bot');
+  };
+
   return {
     history,
     stage,
@@ -1195,6 +1226,7 @@ const useSymptomChecker = () => {
     handleAnswer,
     isTyping,
     reset,
+    continueSession,
     highestSeverity,
     triageReasons,
     startSymptom,
@@ -1206,7 +1238,7 @@ const useSymptomChecker = () => {
 // --- Main UI ---
 
 function App() {
-  const { history, stage, startSymptom, handleAnswer, isTyping, currentQuestion, reset, currentSymptomId, highestSeverity, triageReasons, visitedSymptoms, symptomResults } = useSymptomChecker();
+  const { history, stage, startSymptom, handleAnswer, isTyping, currentQuestion, reset, continueSession, currentSymptomId, highestSeverity, triageReasons, visitedSymptoms, symptomResults } = useSymptomChecker();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [textInput, setTextInput] = useState('');
   const [multiSelect, setMultiSelect] = useState<string[]>([]);
@@ -1360,7 +1392,7 @@ function App() {
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {URGENT_SYMPTOMS.map(s => (
-                                    <SymptomCard key={s.id} symptom={s} onClick={startSymptom} variant="emergency" />
+                                    <SymptomCard key={s.id} symptom={s} onClick={startSymptom} variant="emergency" result={visitedSymptoms.includes(s.id) ? symptomResults[s.id] : undefined} />
                                 ))}
                                 {URGENT_SYMPTOMS.length === 0 && <p className="text-slate-400 italic text-sm col-span-full text-center py-8">No emergency symptoms match your search.</p>}
                             </div>
@@ -1376,7 +1408,7 @@ function App() {
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {COMMON_SYMPTOMS.map(s => (
-                                    <SymptomCard key={s.id} symptom={s} onClick={startSymptom} variant="common" />
+                                    <SymptomCard key={s.id} symptom={s} onClick={startSymptom} variant="common" result={visitedSymptoms.includes(s.id) ? symptomResults[s.id] : undefined} />
                                 ))}
                                 {COMMON_SYMPTOMS.length === 0 && <p className="text-slate-400 italic text-sm col-span-full text-center py-8">No common symptoms match your search.</p>}
                             </div>
@@ -1392,7 +1424,7 @@ function App() {
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {OTHER_SYMPTOMS.map(s => (
-                                    <SymptomCard key={s.id} symptom={s} onClick={startSymptom} variant="other" />
+                                    <SymptomCard key={s.id} symptom={s} onClick={startSymptom} variant="other" result={visitedSymptoms.includes(s.id) ? symptomResults[s.id] : undefined} />
                                 ))}
                                 {OTHER_SYMPTOMS.length === 0 && <p className="text-slate-400 italic text-sm col-span-full text-center py-8">No other symptoms match your search.</p>}
                             </div>
@@ -1517,12 +1549,22 @@ function App() {
                             </div>
                         )}
 
-                        <button 
-                            onClick={reset}
-                            className="w-full mt-8 py-4 bg-slate-900 text-white rounded-xl font-bold text-lg hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1"
-                        >
-                            Start New Assessment
-                        </button>
+                        <div className="grid gap-3 mt-8">
+                            <button 
+                                onClick={continueSession}
+                                className="w-full py-4 bg-teal-600 text-white rounded-xl font-bold text-lg hover:bg-teal-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1 flex items-center justify-center"
+                            >
+                                <span>Check Another Symptom</span>
+                                <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                            </button>
+
+                            <button 
+                                onClick={reset}
+                                className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-lg hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+                            >
+                                End Session & Start Over
+                            </button>
+                        </div>
                         
                         <div className="text-center mt-10 pb-4">
                             <p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">OncoLife is Powered by KanasuLabs | 2025</p>

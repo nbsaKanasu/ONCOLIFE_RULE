@@ -162,12 +162,13 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       icon: Icons.Head,
       screeningQuestions: [
           { id: 'worst_ever', text: 'Is this the worst headache you’ve ever had?', type: 'yes_no' },
-          { id: 'neuro_symptoms', text: 'Do you also have any of these?', type: 'multiselect', options: [
-              {label: 'Blurred/Double Vision', value: 'vision'},
-              {label: 'Trouble speaking', value: 'speech'},
-              {label: 'Face droopy', value: 'face'},
-              {label: 'Arm/Leg weak or heavy', value: 'weakness'},
-              {label: 'Balance trouble', value: 'balance'},
+          { id: 'neuro_symptoms', text: 'Do you also have any of these symptoms:', type: 'multiselect', options: [
+              {label: 'Blurred or double vision', value: 'vision'},
+              {label: 'Trouble speaking or understanding words', value: 'speech'},
+              {label: 'One side of your face looks droopy', value: 'face'},
+              {label: 'One arm or leg feels weak, heavy, or harder to move than the other', value: 'weakness'},
+              {label: 'Trouble walking or keeping your balance', value: 'balance'},
+              {label: 'Confusion or trouble staying awake', value: 'confusion'},
               {label: 'None', value: 'none'}
           ]}
       ],
@@ -1232,10 +1233,13 @@ function App() {
   };
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [history, isTyping, stage]);
+      const timer = setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+      }, 100); // Delay to allow flex layout to adjust
+      return () => clearTimeout(timer);
+  }, [history, isTyping, stage, currentQuestion]);
 
   const handleSubmitText = () => {
     if (!textInput.trim()) return;
@@ -1266,7 +1270,7 @@ function App() {
   return (
     <div className="flex flex-col h-[100dvh] w-full mx-auto overflow-hidden font-sans text-slate-900 bg-slate-50">
       {/* Sticky Header with Glassmorphism */}
-      <div className="sticky top-0 z-40 w-full bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-200">
+      <div className="sticky top-0 z-40 w-full bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-200 shrink-0">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center space-x-3">
                 {/* Logo Icon */}
@@ -1301,12 +1305,12 @@ function App() {
         </div>
       </div>
 
-      {/* Content Area */}
+      {/* Content Area - Flex Grow to take available space */}
       <div className="flex-1 overflow-y-auto bg-slate-50 scrollbar-hide" ref={scrollRef}>
         
         {stage === 'selection' ? (
             /* --- DASHBOARD VIEW --- */
-            <div className="animate-fade-in pb-40"> {/* Increased padding for mobile */}
+            <div className="animate-fade-in pb-20">
                 
                 {/* Hero / Search Section */}
                 <div className="bg-teal-700 px-4 pt-10 pb-12 relative overflow-hidden bg-gradient-to-br from-teal-700 to-teal-900">
@@ -1332,7 +1336,7 @@ function App() {
                     </div>
                 </div>
 
-                {/* Static Category Nav - Anchored, not floating */}
+                {/* Static Category Nav */}
                 <div className="bg-white border-b border-slate-100 py-4 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] relative z-20">
                     <div className="max-w-5xl mx-auto px-4">
                         <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar pb-1">
@@ -1403,7 +1407,7 @@ function App() {
             </div>
         ) : (
             /* --- CHAT VIEW --- */
-            <div className="p-4 max-w-2xl mx-auto w-full pb-64"> {/* INCREASED PADDING FOR MOBILE VISIBILITY */}
+            <div className="p-4 max-w-2xl mx-auto w-full">
                 {/* Progress Bar */}
                 <div className="sticky top-0 bg-slate-50 z-10 pt-4 pb-2">
                    <ProgressBar stage={stage} />
@@ -1529,9 +1533,9 @@ function App() {
         )}
       </div>
 
-      {/* Input Controls (Only shown during chat) */}
+      {/* Input Controls - Flex Shrink to allow dynamic height without overlaying */}
       {stage !== 'selection' && stage !== 'complete' && (
-        <div className="bg-white/90 backdrop-blur-md border-t border-slate-200 p-4 pb-8 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.05)] shrink-0 z-30 absolute bottom-0 w-full">
+        <div className="bg-white/90 backdrop-blur-md border-t border-slate-200 p-4 pb-8 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.05)] w-full shrink-0 z-30 max-h-[55dvh] overflow-y-auto overscroll-contain">
             <div className="max-w-2xl mx-auto animate-fade-in">
                 {currentQuestion?.type === 'yes_no' && (
                 <div className="grid grid-cols-2 gap-4">
@@ -1546,7 +1550,7 @@ function App() {
                         <button 
                         key={opt.value.toString()} 
                         onClick={() => handleAnswer(opt.value)}
-                        className="p-4 rounded-2xl border border-slate-200 text-left font-semibold text-slate-700 hover:bg-teal-50 hover:border-teal-200 hover:text-teal-800 transition-all shadow-sm active:scale-98"
+                        className="p-4 rounded-2xl border border-slate-200 text-left font-semibold text-slate-700 hover:bg-teal-50 hover:border-teal-200 hover:text-teal-800 transition-all shadow-sm active:scale-98 whitespace-normal"
                         >
                         {opt.label}
                         </button>
@@ -1560,15 +1564,15 @@ function App() {
                     <button
                         key={opt.value.toString()}
                         onClick={() => toggleMultiSelect(opt.value as string)}
-                        className={`w-full p-3.5 rounded-2xl border text-left font-medium transition-all flex justify-between items-center shadow-sm active:scale-[0.99] ${
+                        className={`w-full p-3 rounded-2xl border text-left font-medium transition-all flex justify-between items-center shadow-sm active:scale-[0.99] whitespace-normal ${
                         multiSelect.includes(opt.value as string) 
                             ? 'bg-teal-600 border-teal-600 text-white ring-2 ring-teal-300 ring-offset-1' 
                             : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                         }`}
                     >
-                        {opt.label}
+                        <span className="flex-1 pr-2">{opt.label}</span>
                         {multiSelect.includes(opt.value as string) && (
-                            <span className="bg-white text-teal-600 rounded-full w-6 h-6 flex items-center justify-center font-bold text-sm">✓</span>
+                            <span className="bg-white text-teal-600 rounded-full w-6 h-6 flex shrink-0 items-center justify-center font-bold text-sm">✓</span>
                         )}
                     </button>
                     ))}

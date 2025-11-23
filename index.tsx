@@ -154,14 +154,14 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       }
   },
   
-  // --- PAIN SUB-MODULES (Listed as Emergency for quick access if critical) ---
+  // --- MOVED TO OTHER PER CLINICAL REQUEST ---
   'URG-109': {
       id: 'URG-109',
       name: 'Headache',
-      category: 'emergency',
+      category: 'other',
       icon: Icons.Head,
       screeningQuestions: [
-          { id: 'worst_ever', text: 'Is this the worst headache you’ve ever had, or did it start suddenly and very strongly?', type: 'yes_no' },
+          { id: 'worst_ever', text: 'Is this the worst headache you’ve ever had?', type: 'yes_no' },
           { id: 'neuro_symptoms', text: 'Do you also have any of these?', type: 'multiselect', options: [
               {label: 'Blurred/Double Vision', value: 'vision'},
               {label: 'Trouble speaking', value: 'speech'},
@@ -174,7 +174,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       evaluateScreening: (answers) => {
           const symps = answers['neuro_symptoms'] || [];
           if (answers['worst_ever'] === true || (symps.length > 0 && !symps.includes('none'))) {
-              return { action: 'stop', triageLevel: 'call_911', triageMessage: 'Severe Headache with Neuro signs (Possible Stroke/Aneurysm).' };
+              return { action: 'stop', triageLevel: 'call_911', triageMessage: 'Severe Headache reported.' };
           }
           return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Headache reported.' };
       }
@@ -182,10 +182,10 @@ const SYMPTOMS: Record<string, SymptomDef> = {
   'URG-110': {
       id: 'URG-110',
       name: 'Severe Abdominal Pain',
-      category: 'emergency',
+      category: 'other',
       icon: Icons.Stomach,
       screeningQuestions: [
-          { id: 'severe', text: 'Is your stomach pain very strong or getting worse quickly?', type: 'yes_no' },
+          { id: 'pain_scale', text: 'Rate your pain on a scale from 1-10 with 10 being the worst pain.', type: 'number' },
           { id: 'red_flags', text: 'Do you have any of these?', type: 'multiselect', options: [
               {label: 'Fever', value: 'fever'},
               {label: 'Belly swollen/hard', value: 'swollen'},
@@ -195,9 +195,11 @@ const SYMPTOMS: Record<string, SymptomDef> = {
           ]}
       ],
       evaluateScreening: (answers) => {
+          const score = parseInt(answers['pain_scale']);
           const flags = answers['red_flags'] || [];
-          if (answers['severe'] === true || (flags.length > 0 && !flags.includes('none'))) {
-              return { action: 'stop', triageLevel: 'call_911', triageMessage: 'Severe Abdominal Pain with Red Flags (Possible Obstruction/Infection).' };
+          // Check pain scale > 7
+          if ((!isNaN(score) && score > 7) || (flags.length > 0 && !flags.includes('none'))) {
+              return { action: 'stop', triageLevel: 'call_911', triageMessage: 'Severe Abdominal Pain (>7/10) or Red Flags.' };
           }
           return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Abdominal pain reported.' };
       }
@@ -205,23 +207,20 @@ const SYMPTOMS: Record<string, SymptomDef> = {
   'URG-111': {
       id: 'URG-111',
       name: 'Leg/Calf Pain',
-      category: 'emergency',
+      category: 'other',
       icon: Icons.Leg,
       screeningQuestions: [
-          { id: 'dvt_signs', text: 'Is one leg more swollen, red, warm, or painful than the other?', type: 'yes_no' },
-          { id: 'worse_walk', text: 'Does the pain get worse when you walk or press on the calf?', type: 'yes_no' }
+          { id: 'description', text: 'Please explain the symptoms you are having?', type: 'text' }
       ],
       evaluateScreening: (answers) => {
-          if (answers['dvt_signs'] === true || answers['worse_walk'] === true) {
-              return { action: 'stop', triageLevel: 'call_911', triageMessage: 'Leg pain with DVT signs (Swelling, Redness, Warmth).' };
-          }
-          return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Leg pain reported.' };
+          // Removed 911 trigger for DVT signs as per clinical request. Now captures text and alerts care team.
+          return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Leg pain reported (Review text description).' };
       }
   },
   'URG-114': {
       id: 'URG-114',
       name: 'Port Site Pain',
-      category: 'emergency',
+      category: 'other',
       icon: Icons.Port,
       screeningQuestions: [
           { id: 'infection_signs', text: 'Do you have redness, drainage, or chills?', type: 'yes_no' },
@@ -230,7 +229,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       evaluateScreening: (answers) => {
           const t = parseFloat(answers['temp']);
           if (answers['infection_signs'] === true || (!isNaN(t) && t > 100.3)) {
-              return { action: 'stop', triageLevel: 'call_911', triageMessage: 'Port site infection signs or Fever.' };
+              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'Port site infection signs or Fever.' };
           }
            return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Port site pain reported.' };
       }
@@ -1397,14 +1396,14 @@ function App() {
                     )}
                     
                     <div className="text-center border-t border-slate-200 pt-10 pb-8">
-                        <p className="text-xs text-slate-400 mb-1">OncoLife Triage Protocol v1.3 • 27 Clinical Pathways Loaded</p>
+                        <p className="text-xs text-slate-400 mb-1">OncoLife Triage Protocol v1.4 • 27 Clinical Pathways Loaded</p>
                         <p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">OncoLife is Powered by KanasuLabs | 2025</p>
                     </div>
                 </div>
             </div>
         ) : (
             /* --- CHAT VIEW --- */
-            <div className="p-4 max-w-2xl mx-auto w-full pb-32">
+            <div className="p-4 max-w-2xl mx-auto w-full pb-64"> {/* INCREASED PADDING FOR MOBILE VISIBILITY */}
                 {/* Progress Bar */}
                 <div className="sticky top-0 bg-slate-50 z-10 pt-4 pb-2">
                    <ProgressBar stage={stage} />
@@ -1423,7 +1422,7 @@ function App() {
                                 <div className="absolute top-0 right-0 w-32 h-32 bg-red-200 rounded-full blur-3xl opacity-20 -mr-10 -mt-10"></div>
                                 <div className="text-6xl mb-4 animate-bounce">🚨</div>
                                 <h2 className="text-3xl font-extrabold text-red-700 mb-2 tracking-tight">Emergency Detected</h2>
-                                <p className="text-red-800 text-lg font-semibold mb-8">Please call 911 or go to the ER immediately.</p>
+                                <p className="text-red-800 text-lg font-semibold mb-8">Immediate Action Required: Call 911. If you feel it is appropriate to call your care team first, please do so.</p>
                                 <div className="bg-white rounded-2xl p-5 border border-red-100 text-left shadow-sm">
                                     <p className="text-[10px] text-red-400 uppercase font-bold mb-3 tracking-widest">Clinical Reasoning:</p>
                                     <ul className="space-y-2 text-red-900 text-sm font-medium">

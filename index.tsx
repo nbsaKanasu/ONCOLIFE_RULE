@@ -112,7 +112,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
     icon: Icons.Bleed,
     screeningQuestions: [
         { id: 'pressure', text: 'Are you bleeding and the bleeding won\'t stop with pressure?', type: 'yes_no' },
-        { id: 'stool_urine', text: 'Do you have a significant amount of blood in your stool or urine?', type: 'yes_no' },
+        { id: 'stool_urine', text: 'Do you have any blood in your stool or urine?', type: 'yes_no' },
         { id: 'injury', text: 'Did you injure yourself?', type: 'yes_no' },
         { id: 'thinners', text: 'Are you on blood thinners?', type: 'yes_no' },
         { id: 'location', text: 'Is the bruising in one area or all over?', type: 'choice', options: [{label: 'One Area', value: 'one'}, {label: 'All Over', value: 'all'}] },
@@ -256,12 +256,14 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       return { action: 'continue' };
     },
     followUpQuestions: [
-        { id: 'vom_diarrhea', text: 'Do you have vomiting or diarrhea?', type: 'yes_no' },
+        { id: 'has_vomiting', text: 'Do you have vomiting?', type: 'yes_no' },
+        { id: 'has_diarrhea', text: 'Do you have diarrhea?', type: 'yes_no' },
         { id: 'intake', text: 'Are you able to eat/drink?', type: 'yes_no' },
         { id: 'fever', text: 'Do you have a fever?', type: 'yes_no' }
     ],
     evaluateFollowUp: (answers) => {
-        if (answers['vom_diarrhea'] === true) return { action: 'branch', branchToSymptomId: 'VOM-204' };
+        if (answers['has_vomiting'] === true) return { action: 'branch', branchToSymptomId: 'VOM-204' };
+        if (answers['has_diarrhea'] === true) return { action: 'branch', branchToSymptomId: 'DIA-205' };
         if (answers['fever'] === true) return { action: 'branch', branchToSymptomId: 'FEV-202' };
         return { action: 'continue' };
     }

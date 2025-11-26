@@ -121,9 +121,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
         if (answers['pressure'] === true || answers['stool_urine'] === true) {
             return { action: 'stop', triageLevel: 'call_911', triageMessage: 'Non-stop Bleeding or Significant GI/GU Bleed.' };
         }
-        if (answers['location']) {
-             return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Reports of bleeding/bruising (Alert Flow Stops).' };
-        }
+        // Removed generic alert for 'location'. If no emergency criteria met, it stays Safe unless triggered elsewhere.
         return { action: 'continue' };
     }
   },
@@ -251,7 +249,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
     ],
     evaluateScreening: (answers) => {
       if (answers['hr_sbp'] === true || answers['thirsty'] === true || answers['lightheaded'] === true || answers['urine_amt'] === true || answers['urine_color'] === 'dark') {
-        return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Dehydration Signs: HR>100, SBP<100, Thirsty, Lightheaded, or Reduced Urine.', skipRemaining: true };
+        return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Dehydration Signs: HR>100, SBP<100, Thirsty, Lightheaded, or Reduced Urine.' };
       }
       return { action: 'continue' };
     },
@@ -334,7 +332,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
        const modChronic = answers['severity_post_meds'] === 'mod' && (answers['days'] === '2-3d' || answers['days'] === '>3d') && answers['trend'] === 'bad';
 
        if (intakeBad || sevBad || modChronic) {
-           return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Intake Issue OR Severe Nausea OR Moderate for ≥3 days.', skipRemaining: true };
+           return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Intake Issue OR Severe Nausea OR Moderate for ≥3 days.' };
        }
        return { action: 'continue' };
     },
@@ -373,7 +371,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       evaluateScreening: (answers) => {
           // ">6 episodes in 24 hrs AND/OR No oral intake for ≥12 hrs OR Rating Severe DESPITE meds OR Rating Moderate for ≥3 days"
           if (answers['vom_freq'] === 'high' || answers['intake_12h'] === 'none' || answers['severity_post_med'] === 'sev') {
-              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: '>6 episodes in 24 hrs OR No intake 12h OR Severe.', skipRemaining: true };
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: '>6 episodes in 24 hrs OR No intake 12h OR Severe.' };
           }
           if (answers['severity_post_med'] === 'mod') {
               return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Moderate Vomiting reported.' };
@@ -417,23 +415,23 @@ const SYMPTOMS: Record<string, SymptomDef> = {
           
           // ">5 loose stools/day"
           if (stools > 5) {
-               return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: '>5 loose stools/day reported.', skipRemaining: true };
+               return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: '>5 loose stools/day reported.' };
           }
           // "Moderate/Severe abdominal pain"
           if (answers['pain_sev'] === 'mod' || answers['pain_sev'] === 'sev') {
-              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Moderate/Severe abdominal pain reported.', skipRemaining: true };
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Moderate/Severe abdominal pain reported.' };
           }
           // "Stool is Bloody/Black/Mucus"
           if (types.includes('black') || types.includes('blood') || types.includes('mucus')) {
-               return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Bloody/Black/Mucus Stool reported.', skipRemaining: true };
+               return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Bloody/Black/Mucus Stool reported.' };
           }
           // "Dehydration signs OR Intake Almost Nothing"
           if ((dehy.length > 0 && !dehy.includes('none')) || answers['intake'] === 'none') {
-              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Dehydration signs or No Intake.', skipRemaining: true };
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Dehydration signs or No Intake.' };
           }
           // "Rating Severe DESPITE meds"
           if (answers['severity_post_med'] === 'sev') {
-              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Severe Diarrhea despite meds.', skipRemaining: true };
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Severe Diarrhea despite meds.' };
           }
           
           return { action: 'continue' };
@@ -462,7 +460,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       evaluateScreening: (answers) => {
           const days = parseFloat(answers['days']);
           if (!isNaN(days) && days > 2) {
-              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'No bowel movement for > 2 days (48 hours).', skipRemaining: true };
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'No bowel movement for > 2 days (48 hours).' };
           }
           return { action: 'continue' };
       },
@@ -500,10 +498,10 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       evaluateScreening: (answers) => {
           // "Interference to Daily Tasks OR Rating Severe OR Rating Moderate for >= 3 days and worsening/same"
           if (answers['interfere'] === true || answers['severity'] === 'sev') {
-              return { action: 'continue', triageLevel: 'refer_provider', triageMessage: 'Interference to Daily Tasks OR Rating Severe.', skipRemaining: true };
+              return { action: 'continue', triageLevel: 'refer_provider', triageMessage: 'Interference to Daily Tasks OR Rating Severe.' };
           }
           if (answers['severity'] === 'mod' && parseFloat(answers['days']) >= 3 && answers['trend'] !== 'better') {
-              return { action: 'continue', triageLevel: 'refer_provider', triageMessage: 'Moderate Fatigue >= 3 days.', skipRemaining: true };
+              return { action: 'continue', triageLevel: 'refer_provider', triageMessage: 'Moderate Fatigue >= 3 days.' };
           }
           return { action: 'continue' };
       },
@@ -540,7 +538,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       ],
       evaluateScreening: (answers) => {
           if (answers['interfere'] === true || answers['severity'] === 'sev') {
-              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Interference to Daily Tasks OR Rating Severe.', skipRemaining: true };
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Interference to Daily Tasks OR Rating Severe.' };
           }
           return { action: 'continue' };
       },
@@ -563,7 +561,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       evaluateScreening: (answers) => {
           // "Not able to eat/drink normally AND/OR Fever OR Rating Severe"
           if (answers['intake'] === 'none' || answers['severity'] === 'sev') {
-              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Not able to eat/drink normally OR Rating Severe.', skipRemaining: true };
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Not able to eat/drink normally OR Rating Severe.' };
           }
           return { action: 'continue' };
       },
@@ -590,7 +588,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       ],
       evaluateScreening: (answers) => {
           if (answers['weight'] === 'high' || answers['intake'] === 'half' || answers['intake'] === 'none') {
-              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Recent weight loss >3 lbs in a week OR Eating less than half of usual meals.', skipRemaining: true };
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Recent weight loss >3 lbs in a week OR Eating less than half of usual meals.' };
           }
           return { action: 'continue' };
       },
@@ -629,7 +627,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       ],
       evaluateScreening: (answers) => {
           if (answers['blood'] === true || answers['burn_sev'] === 'mod' || answers['burn_sev'] === 'sev' || answers['pelvic'] === true || answers['amount'] === true) {
-              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Urine change OR Pelvic Pain OR Blood OR Moderate/Severe burning.', skipRemaining: true };
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Urine change OR Pelvic Pain OR Blood OR Moderate/Severe burning.' };
           }
           return { action: 'continue' };
       },
@@ -668,7 +666,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
           const coverageIssue = answers['coverage'] === true;
 
           if (infusionIssue || adlIssue || feverIssue || coverageIssue) {
-               return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Infusion issue OR ADL impact OR Fever OR >30% Coverage.', skipRemaining: true };
+               return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Infusion issue OR ADL impact OR Fever OR >30% Coverage.' };
           }
           return { action: 'continue' };
       },
@@ -715,7 +713,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
           
           // "Rated Moderate/Severe AND interferes with ADLs OR Rated Severe OR Fever >100.4F"
           if (answers['severity'] === 'sev' || (answers['severity'] === 'mod' && answers['interfere'] === true) || answers['fever'] === true) {
-              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Pain Severity/Interference Met.', skipRemaining: true };
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Pain Severity/Interference Met.' };
           }
           return { action: 'continue' };
       },
@@ -773,7 +771,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       evaluateScreening: (answers) => {
           // "Unilateral leg swelling OR Redness OR Pain OR Rating Moderate/Severe"
           if (answers['unilateral_leg'] === true || answers['redness'] === true || answers['severity'] === 'mod' || answers['severity'] === 'sev') {
-              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Unilateral leg swelling OR Redness OR Rating Moderate/Severe.', skipRemaining: true };
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Unilateral leg swelling OR Redness OR Rating Moderate/Severe.' };
           }
           return { action: 'continue' };
       },
@@ -814,7 +812,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
 
           // "Cough prevents ADLs OR Chest Pain/Shortness of Breath OR Temp >100.4F OR O2 sat <92%"
           if (answers['prevent'] === true || highTemp || lowO2) {
-               return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Cough prevents ADLs OR Temp >100.4F OR O2 <92%.', skipRemaining: true };
+               return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Cough prevents ADLs OR Temp >100.4F OR O2 <92%.' };
           }
           return { action: 'continue' };
       },
@@ -838,7 +836,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       ],
       evaluateScreening: (answers) => {
           if (answers['interfere'] === true || answers['severity'] === 'mod' || answers['severity'] === 'sev') {
-              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Interference with Normal Activities OR Rating Moderate-Severe.', skipRemaining: true };
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Interference with Normal Activities OR Rating Moderate-Severe.' };
           }
           return { action: 'continue' };
       },
@@ -916,13 +914,23 @@ const TypingIndicator = () => (
   </div>
 );
 
-const SymptomCard: React.FC<{ symptom: SymptomDef, onClick: (id: string) => void, variant: 'emergency' | 'common' | 'other', result?: ActionLevel }> = ({ symptom, onClick, variant, result }) => {
-    const baseClasses = "p-5 rounded-2xl border transition-all duration-300 transform hover:-translate-y-1 active:scale-95 flex flex-col justify-between w-full text-left group relative overflow-hidden min-h-[150px]";
+const SymptomCard: React.FC<{ 
+    symptom: SymptomDef, 
+    onClick: (id: string) => void, 
+    variant: 'emergency' | 'common' | 'other', 
+    result?: ActionLevel,
+    isMultiSelectMode: boolean,
+    isSelected: boolean
+}> = ({ symptom, onClick, variant, result, isMultiSelectMode, isSelected }) => {
+    const baseClasses = "p-5 rounded-2xl border transition-all duration-300 transform flex flex-col justify-between w-full text-left group relative overflow-hidden min-h-[150px]";
     const styles = {
         emergency: "bg-white border-slate-100 shadow-sm hover:shadow-lg hover:border-red-200",
         common: "bg-white border-slate-100 shadow-sm hover:shadow-lg hover:border-teal-200",
         other: "bg-white border-slate-100 shadow-sm hover:shadow-lg hover:border-indigo-200"
     };
+    
+    // Override styles if selected in multi-mode
+    const selectedStyle = isSelected ? "ring-2 ring-teal-500 bg-teal-50/50" : "";
     
     const iconBg = variant === 'emergency' ? 'bg-red-50 text-red-600 group-hover:bg-red-100' : variant === 'common' ? 'bg-teal-50 text-teal-600 group-hover:bg-teal-100' : 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-100';
 
@@ -936,13 +944,18 @@ const SymptomCard: React.FC<{ symptom: SymptomDef, onClick: (id: string) => void
     }
 
     return (
-        <button onClick={() => onClick(symptom.id)} className={`${baseClasses} ${styles[variant]}`}>
+        <button onClick={() => onClick(symptom.id)} className={`${baseClasses} ${styles[variant]} ${selectedStyle} ${!isMultiSelectMode && 'active:scale-95 hover:-translate-y-1'}`}>
             {badge}
+            {isMultiSelectMode && (
+                 <div className={`absolute top-3 right-3 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-teal-500 border-teal-500' : 'border-slate-300 bg-white'}`}>
+                     {isSelected && <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                 </div>
+            )}
             <div className="flex justify-between items-start w-full">
                  <div className={`p-3.5 rounded-2xl transition-colors ${iconBg}`}>
                     {symptom.icon}
                 </div>
-                {!result && (
+                {!result && !isMultiSelectMode && (
                     <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                         <span className="text-slate-400 font-bold text-lg leading-none">➔</span>
                     </div>
@@ -979,7 +992,7 @@ const ProgressBar: React.FC<{ stage: string }> = ({ stage }) => {
 };
 
 // --- Logic Hook ---
-// (Unchanged Logic from previous iteration, keeping all strict rules)
+
 const useSymptomChecker = () => {
   const [history, setHistory] = useState<Message[]>([
     { id: 'welcome', sender: 'bot', content: 'Hello. I am the OncoLife Assistant. Please select a symptom below. If this is a medical emergency, call 911 immediately.' }
@@ -990,6 +1003,7 @@ const useSymptomChecker = () => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [visitedSymptoms, setVisitedSymptoms] = useState<string[]>([]);
+  const [symptomQueue, setSymptomQueue] = useState<string[]>([]); // New Queue for multi-symptom
   const [isTyping, setIsTyping] = useState(false);
   
   const [highestSeverity, setHighestSeverity] = useState<ActionLevel>('none');
@@ -1006,8 +1020,13 @@ const useSymptomChecker = () => {
 
   const updateTriage = (level: ActionLevel, reason?: string) => {
       setHighestSeverity(prev => isHigherSeverity(prev, level) ? level : prev);
-      if (reason && !triageReasons.includes(reason)) {
-          setTriageReasons(prev => [...prev, reason]);
+      
+      // Strict Deduplication using functional update
+      if (reason) {
+          setTriageReasons(prev => {
+              if (prev.includes(reason)) return prev;
+              return [...prev, reason];
+          });
       }
       
       // Update the specific result for the current symptom
@@ -1019,11 +1038,19 @@ const useSymptomChecker = () => {
       }
   };
 
-  const startSymptom = (symptomId: string) => {
+  const startSession = (symptomIds: string[]) => {
+      setSymptomQueue(symptomIds);
+      if (symptomIds.length > 0) {
+          const firstId = symptomIds[0];
+          startSymptomLogic(firstId);
+      }
+  };
+
+  const startSymptomLogic = (symptomId: string) => {
     // Loop Guard
     if (visitedSymptoms.includes(symptomId)) {
         addMessage(`(System Note: Symptom '${SYMPTOMS[symptomId].name}' already checked, skipping to prevent loop)`, 'bot', false, true);
-        completeSession();
+        completeSingleSymptom();
         return;
     }
 
@@ -1035,7 +1062,6 @@ const useSymptomChecker = () => {
     setVisitedSymptoms(prev => [...prev, symptomId]);
     setSymptomResults(prev => ({ ...prev, [symptomId]: 'none' })); // Initialize as safe
     
-    // Add System Message for Symptom Start and track ID
     const msgId = addMessage(`Checking: ${symptom.name}`, 'bot', false, true, symptomId, 'checking');
     setCurrentSymptomMsgId(msgId);
     
@@ -1068,26 +1094,19 @@ const useSymptomChecker = () => {
     addMessage(displayAnswer, 'user');
 
     // === DYNAMIC EVALUATION STEP ===
-    let skipRemaining = false;
     if (stage === 'screening') {
         const result = symptom.evaluateScreening(newAnswers);
         
-        // Immediate Stop Conditions
+        // Immediate Stop Conditions (Only for 911)
         if (result.action === 'stop' || result.triageLevel === 'call_911') {
             updateTriage(result.triageLevel!, result.triageMessage);
-            completeSession();
+            completeSingleSymptom();
             return;
         }
         
-        // Triage Level Increase
+        // Triage Level Increase (But DO NOT Stop/Skip for Amber/Blue)
         if (result.triageLevel && isHigherSeverity(highestSeverity, result.triageLevel)) {
              updateTriage(result.triageLevel, result.triageMessage);
-        }
-        
-        // Short-circuit logic (Alert met)
-        if (result.skipRemaining) {
-            skipRemaining = true;
-            addMessage("Based on your answer, this requires medical attention. I am skipping remaining screening questions to check for related complications.", 'bot', false, true);
         }
     }
     // ===============================
@@ -1096,7 +1115,7 @@ const useSymptomChecker = () => {
 
     setTimeout(() => {
       setIsTyping(false);
-      if (!skipRemaining && currentQuestionIndex < currentQList.length - 1) {
+      if (currentQuestionIndex < currentQList.length - 1) {
         setCurrentQuestionIndex(prev => prev + 1);
         askQuestion(currentQList[currentQuestionIndex + 1]);
       } else {
@@ -1116,17 +1135,19 @@ const useSymptomChecker = () => {
     }
 
     if (result.action === 'stop' || result.triageLevel === 'call_911') {
-        completeSession();
+        completeSingleSymptom();
         return;
     }
 
     if (result.action === 'branch' && result.branchToSymptomId) {
-        if (visitedSymptoms.includes(result.branchToSymptomId)) {
-            completeSession();
-            return;
+        // Instead of immediate branch, we can push to queue or run immediate.
+        // For branching logic (e.g. Diarrhea -> Dehydration), usually it implies "Check this now".
+        // We will insert it at the front of the queue to check immediately next.
+        if (!visitedSymptoms.includes(result.branchToSymptomId)) {
+             addMessage(`Based on your answers, checking ${SYMPTOMS[result.branchToSymptomId].name} next.`, 'bot', false, true);
+             setSymptomQueue(prev => [result.branchToSymptomId!, ...prev.filter(id => id !== result.branchToSymptomId!)]); // Move to front
         }
-        addMessage(`Based on your answers, we need to check ${SYMPTOMS[result.branchToSymptomId].name}.`, 'bot', false, true);
-        setTimeout(() => startSymptom(result.branchToSymptomId!), 800);
+        completeSingleSymptom(); // End screening for current, pick up next (branch)
         return;
     }
 
@@ -1136,7 +1157,7 @@ const useSymptomChecker = () => {
         addMessage("I need to ask a few follow-up questions.", 'bot');
         setTimeout(() => askQuestion(symptom.followUpQuestions![0]), 500);
     } else {
-        completeSession();
+        completeSingleSymptom();
     }
   };
 
@@ -1152,37 +1173,33 @@ const useSymptomChecker = () => {
           }
 
           if (result.action === 'stop' || result.triageLevel === 'call_911') {
-              completeSession();
+              completeSingleSymptom();
               return;
           }
 
           if (result.action === 'branch' && result.branchToSymptomId) {
-              if (visitedSymptoms.includes(result.branchToSymptomId)) {
-                  completeSession();
-                  return;
-              }
-              addMessage(`Checking related symptom: ${SYMPTOMS[result.branchToSymptomId].name}`, 'bot', false, true);
-              setTimeout(() => startSymptom(result.branchToSymptomId!), 800);
-              return;
+               if (!visitedSymptoms.includes(result.branchToSymptomId)) {
+                    addMessage(`Checking related symptom: ${SYMPTOMS[result.branchToSymptomId].name}`, 'bot', false, true);
+                    setSymptomQueue(prev => [result.branchToSymptomId!, ...prev.filter(id => id !== result.branchToSymptomId!)]);
+               }
           }
       }
-      completeSession();
+      completeSingleSymptom();
   };
 
-  const completeSession = () => {
-    // Update previous symptom message status
+  const completeSingleSymptom = () => {
+    // Update history UI
     setHistory(prev => prev.map(msg => {
-        if (msg.symptomStatus === 'checking') {
+        if (msg.symptomStatus === 'checking' && msg.symptomId === currentSymptomId) {
+            const res = symptomResults[currentSymptomId!] || 'none';
             let status: SymptomStatus = 'safe';
-            // Determine status based on current highest severity
-            if (highestSeverity === 'call_911') status = 'emergency';
-            else if (highestSeverity === 'notify_care_team' || highestSeverity === 'refer_provider') status = 'alert';
+            if (res === 'call_911') status = 'emergency';
+            else if (res === 'notify_care_team' || res === 'refer_provider') status = 'alert';
             return { ...msg, symptomStatus: status };
         }
         return msg;
     }));
 
-    // Explicitly output summary for current symptom
     if (currentSymptomId) {
         const result = symptomResults[currentSymptomId] || 'none';
         const name = SYMPTOMS[currentSymptomId].name;
@@ -1190,11 +1207,26 @@ const useSymptomChecker = () => {
         if (result === 'call_911') statusText = "Emergency - Call 911";
         else if (result === 'notify_care_team') statusText = "Notify Care Team";
         else if (result === 'refer_provider') statusText = "Contact Provider";
-
         addMessage(`${name} Assessment Complete. Status: ${statusText}`, 'bot', false, true);
     }
-
-    setStage('complete');
+    
+    // Check Queue
+    // We need to remove the current (or just shift)
+    // Actually, queue might still have current at index 0 if we didn't shift yet.
+    // Let's rely on setSymptomQueue to remove the one we just did.
+    // Wait, startSession set it.
+    // We should shift the queue NOW.
+    
+    const nextQueue = symptomQueue.filter(id => id !== currentSymptomId);
+    setSymptomQueue(nextQueue);
+    
+    if (nextQueue.length > 0) {
+        // Proceed to next
+        const nextId = nextQueue[0];
+        setTimeout(() => startSymptomLogic(nextId), 1000);
+    } else {
+        setStage('complete');
+    }
   };
 
   const reset = () => {
@@ -1206,6 +1238,7 @@ const useSymptomChecker = () => {
     setTriageReasons([]);
     setVisitedSymptoms([]);
     setSymptomResults({});
+    setSymptomQueue([]);
     setHistory([{ id: Date.now().toString(), sender: 'bot', content: 'Hello. I am the OncoLife Assistant. Please select a symptom below.' }]);
   };
 
@@ -1231,7 +1264,7 @@ const useSymptomChecker = () => {
     continueSession,
     highestSeverity,
     triageReasons,
-    startSymptom,
+    startSession,
     visitedSymptoms,
     symptomResults
   };
@@ -1240,11 +1273,15 @@ const useSymptomChecker = () => {
 // --- Main UI ---
 
 function App() {
-  const { history, stage, startSymptom, handleAnswer, isTyping, currentQuestion, reset, continueSession, currentSymptomId, highestSeverity, triageReasons, visitedSymptoms, symptomResults } = useSymptomChecker();
+  const { history, stage, startSession, handleAnswer, isTyping, currentQuestion, reset, continueSession, currentSymptomId, highestSeverity, triageReasons, visitedSymptoms, symptomResults } = useSymptomChecker();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [textInput, setTextInput] = useState('');
   const [multiSelect, setMultiSelect] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Dashboard Multi-Select State
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
 
   // References for scroll
   const emergencyRef = useRef<HTMLDivElement>(null);
@@ -1271,7 +1308,7 @@ function App() {
         if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-      }, 100); // Delay to allow flex layout to adjust
+      }, 100); 
       return () => clearTimeout(timer);
   }, [history, isTyping, stage, currentQuestion]);
 
@@ -1291,6 +1328,23 @@ function App() {
       prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]
     );
   };
+  
+  // Dashboard Card Click Handler
+  const handleCardClick = (id: string) => {
+      if (isMultiSelectMode) {
+          setSelectedSymptoms(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
+      } else {
+          startSession([id]);
+      }
+  };
+  
+  const handleStartMultiSession = () => {
+      if (selectedSymptoms.length > 0) {
+          startSession(selectedSymptoms);
+          setSelectedSymptoms([]);
+          setIsMultiSelectMode(false);
+      }
+  };
 
   // Filter Logic
   const filteredSymptoms = Object.values(SYMPTOMS).filter(s => 
@@ -1303,11 +1357,10 @@ function App() {
 
   return (
     <div className="flex flex-col h-[100dvh] w-full mx-auto overflow-hidden font-sans text-slate-900 bg-slate-50">
-      {/* Sticky Header with Glassmorphism */}
+      {/* Sticky Header */}
       <div className="sticky top-0 z-40 w-full bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-200 shrink-0">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center space-x-3">
-                {/* Logo Icon */}
                 <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center text-white shadow-md bg-gradient-to-br from-teal-500 to-teal-700">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
                     <path d="M10.5 3C7.46 3 5 5.46 5 8.5C5 12.3 8.5 16 10 17.5L8.5 21H11L12 18.5L13 21H15.5L14 17.5C15.5 16 19 12.3 19 8.5C19 5.46 16.54 3 13.5 3C12.4 3 11.4 3.3 10.5 3ZM12 5C13.93 5 15.5 6.57 15.5 8.5C15.5 10.9 13.5 13.5 12 15C10.5 13.5 8.5 10.9 8.5 8.5C8.5 6.57 10.07 5 12 5Z" />
@@ -1339,7 +1392,6 @@ function App() {
         </div>
       </div>
 
-      {/* Content Area - Flex Grow to take available space */}
       <div className="flex-1 overflow-y-auto bg-slate-50 scrollbar-hide" ref={scrollRef}>
         
         {stage === 'selection' ? (
@@ -1355,7 +1407,7 @@ function App() {
                         <h2 className="text-3xl md:text-4xl font-bold text-white mb-3 tracking-tight">How are you feeling?</h2>
                         <p className="text-teal-100 text-sm md:text-base mb-8 opacity-90">Select a symptom below to start your professional safety assessment.</p>
                         
-                        <div className="relative max-w-lg mx-auto group">
+                        <div className="relative max-w-lg mx-auto group mb-4">
                             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                 <svg className="h-5 w-5 text-slate-400 group-focus-within:text-teal-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                             </div>
@@ -1366,6 +1418,22 @@ function App() {
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                             />
+                        </div>
+                        
+                        {/* Multi-Select Toggle */}
+                        <div className="flex justify-center items-center space-x-3 bg-teal-800/50 inline-block p-1 rounded-full backdrop-blur-sm">
+                             <button 
+                                onClick={() => { setIsMultiSelectMode(false); setSelectedSymptoms([]); }}
+                                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${!isMultiSelectMode ? 'bg-white text-teal-700 shadow' : 'text-teal-200 hover:text-white'}`}
+                             >
+                                 Single Check
+                             </button>
+                             <button 
+                                onClick={() => setIsMultiSelectMode(true)}
+                                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${isMultiSelectMode ? 'bg-white text-teal-700 shadow' : 'text-teal-200 hover:text-white'}`}
+                             >
+                                 Multi-Select
+                             </button>
                         </div>
                     </div>
                 </div>
@@ -1394,7 +1462,7 @@ function App() {
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {URGENT_SYMPTOMS.map(s => (
-                                    <SymptomCard key={s.id} symptom={s} onClick={startSymptom} variant="emergency" result={visitedSymptoms.includes(s.id) ? symptomResults[s.id] : undefined} />
+                                    <SymptomCard key={s.id} symptom={s} onClick={handleCardClick} variant="emergency" result={visitedSymptoms.includes(s.id) ? symptomResults[s.id] : undefined} isMultiSelectMode={isMultiSelectMode} isSelected={selectedSymptoms.includes(s.id)} />
                                 ))}
                                 {URGENT_SYMPTOMS.length === 0 && <p className="text-slate-400 italic text-sm col-span-full text-center py-8">No emergency symptoms match your search.</p>}
                             </div>
@@ -1410,7 +1478,7 @@ function App() {
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {COMMON_SYMPTOMS.map(s => (
-                                    <SymptomCard key={s.id} symptom={s} onClick={startSymptom} variant="common" result={visitedSymptoms.includes(s.id) ? symptomResults[s.id] : undefined} />
+                                    <SymptomCard key={s.id} symptom={s} onClick={handleCardClick} variant="common" result={visitedSymptoms.includes(s.id) ? symptomResults[s.id] : undefined} isMultiSelectMode={isMultiSelectMode} isSelected={selectedSymptoms.includes(s.id)} />
                                 ))}
                                 {COMMON_SYMPTOMS.length === 0 && <p className="text-slate-400 italic text-sm col-span-full text-center py-8">No common symptoms match your search.</p>}
                             </div>
@@ -1426,7 +1494,7 @@ function App() {
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {OTHER_SYMPTOMS.map(s => (
-                                    <SymptomCard key={s.id} symptom={s} onClick={startSymptom} variant="other" result={visitedSymptoms.includes(s.id) ? symptomResults[s.id] : undefined} />
+                                    <SymptomCard key={s.id} symptom={s} onClick={handleCardClick} variant="other" result={visitedSymptoms.includes(s.id) ? symptomResults[s.id] : undefined} isMultiSelectMode={isMultiSelectMode} isSelected={selectedSymptoms.includes(s.id)} />
                                 ))}
                                 {OTHER_SYMPTOMS.length === 0 && <p className="text-slate-400 italic text-sm col-span-full text-center py-8">No other symptoms match your search.</p>}
                             </div>
@@ -1438,6 +1506,19 @@ function App() {
                         <p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">OncoLife is Powered by KanasuLabs | 2025</p>
                     </div>
                 </div>
+                
+                {/* Floating Action Button for Multi-Select */}
+                {isMultiSelectMode && selectedSymptoms.length > 0 && (
+                    <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 animate-fade-in w-full max-w-sm px-4">
+                        <button 
+                            onClick={handleStartMultiSession}
+                            className="w-full bg-slate-900 text-white py-4 rounded-2xl shadow-2xl font-bold text-lg flex items-center justify-center hover:bg-slate-800 transition-all active:scale-95"
+                        >
+                            <span>Start Assessment ({selectedSymptoms.length})</span>
+                            <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                        </button>
+                    </div>
+                )}
             </div>
         ) : (
             /* --- CHAT VIEW --- */
@@ -1577,7 +1658,7 @@ function App() {
         )}
       </div>
 
-      {/* Input Controls - Flex Shrink to allow dynamic height without overlaying */}
+      {/* Input Controls */}
       {stage !== 'selection' && stage !== 'complete' && (
         <div className="bg-white/90 backdrop-blur-md border-t border-slate-200 p-4 pb-8 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.05)] w-full shrink-0 z-30 max-h-[55dvh] overflow-y-auto overscroll-contain">
             <div className="max-w-2xl mx-auto animate-fade-in">

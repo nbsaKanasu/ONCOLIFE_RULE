@@ -1306,7 +1306,12 @@ function App() {
   useEffect(() => {
       const timer = setTimeout(() => {
         if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            // Fix: Check stage to decide scroll direction
+            if (stage === 'selection') {
+                 scrollRef.current.scrollTop = 0;
+            } else {
+                 scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            }
         }
       }, 100); 
       return () => clearTimeout(timer);

@@ -257,9 +257,10 @@ const useSymptomChecker = () => {
     if (stage === 'screening') {
         const result = symptom.evaluateScreening(newAnswers);
         
+        // --- LOGIC UPDATE: Ask All Questions ---
+        // Only Stop immediately if 911 or explicit Stop action
         if (result.action === 'stop' || result.triageLevel === 'call_911') {
             if (result.triageLevel) updateTriage(result.triageLevel, result.triageMessage);
-            // If it's a STOP action with 'none' (like low fever), we show message and stop.
             if (result.action === 'stop' && result.triageLevel === 'none' && result.triageMessage) {
                  addMessage(result.triageMessage, 'bot');
             }
@@ -267,6 +268,7 @@ const useSymptomChecker = () => {
             return;
         }
         
+        // For alerts (notify_care_team), we update state but continue asking questions
         if (result.triageLevel && isHigherSeverity(highestSeverity, result.triageLevel)) {
              updateTriage(result.triageLevel, result.triageMessage);
         }
@@ -319,7 +321,7 @@ const useSymptomChecker = () => {
         // Ensure first question of followup is valid
         const firstIdx = getNextValidQuestionIndex(symptom.followUpQuestions, -1, finalAnswers);
         if (firstIdx !== -1) {
-             addMessage("I need to ask a few follow-up questions.", 'bot');
+             addMessage("Checking for additional symptoms...", 'bot');
              setCurrentQuestionIndex(firstIdx);
              setTimeout(() => askQuestion(symptom.followUpQuestions![firstIdx]), 500);
         } else {

@@ -156,13 +156,12 @@ const useSymptomChecker = () => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [visitedSymptoms, setVisitedSymptoms] = useState<string[]>([]);
-  const [symptomQueue, setSymptomQueue] = useState<string[]>([]); // New Queue for multi-symptom
+  const [symptomQueue, setSymptomQueue] = useState<string[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   
   const [highestSeverity, setHighestSeverity] = useState<ActionLevel>('none');
   const [triageReasons, setTriageReasons] = useState<string[]>([]);
   
-  // Track severity per symptom for the summary
   const [symptomResults, setSymptomResults] = useState<Record<string, ActionLevel>>({});
 
   const addMessage = (text: string | React.ReactNode, sender: 'bot' | 'user', isAlert = false, isSystem = false, symptomId?: string, symptomStatus?: SymptomStatus) => {
@@ -173,16 +172,12 @@ const useSymptomChecker = () => {
 
   const updateTriage = (level: ActionLevel, reason?: string) => {
       setHighestSeverity(prev => isHigherSeverity(prev, level) ? level : prev);
-      
-      // Strict Deduplication using functional update
       if (reason) {
           setTriageReasons(prev => {
               if (prev.includes(reason)) return prev;
               return [...prev, reason];
           });
       }
-      
-      // Update the specific result for the current symptom
       if (currentSymptomId) {
           setSymptomResults(prev => {
               const current = prev[currentSymptomId] || 'none';
@@ -200,7 +195,6 @@ const useSymptomChecker = () => {
   };
 
   const startSymptomLogic = (symptomId: string) => {
-    // Loop Guard
     if (visitedSymptoms.includes(symptomId)) {
         addMessage(`(System Note: Symptom '${SYMPTOMS[symptomId].name}' already checked, skipping to prevent loop)`, 'bot', false, true);
         completeSingleSymptom();
@@ -213,7 +207,7 @@ const useSymptomChecker = () => {
     setCurrentQuestionIndex(0);
     setAnswers({}); 
     setVisitedSymptoms(prev => [...prev, symptomId]);
-    setSymptomResults(prev => ({ ...prev, [symptomId]: 'none' })); // Initialize as safe
+    setSymptomResults(prev => ({ ...prev, [symptomId]: 'none' })); 
     
     const msgId = addMessage(`Checking: ${symptom.name}`, 'bot', false, true, symptomId, 'checking');
     setCurrentSymptomMsgId(msgId);
@@ -227,6 +221,20 @@ const useSymptomChecker = () => {
 
   const askQuestion = (q: Question) => {
     addMessage(q.text, 'bot');
+  };
+
+  // Helper to find next valid question based on conditions
+  const getNextValidQuestionIndex = (list: Question[], currentIndex: number, currentAnswers: Record<string, any>): number => {
+    let nextIdx = currentIndex + 1;
+    while(nextIdx < list.length) {
+       const q = list[nextIdx];
+       // If no condition, or condition returns true, it's valid
+       if (!q.condition || q.condition(currentAnswers)) {
+          return nextIdx;
+       }
+       nextIdx++;
+    }
+    return -1; // No more questions
   };
 
   const handleAnswer = (answer: any) => {
@@ -246,31 +254,34 @@ const useSymptomChecker = () => {
     if (Array.isArray(answer)) displayAnswer = answer.join(', ') || 'None';
     addMessage(displayAnswer, 'user');
 
-    // === DYNAMIC EVALUATION STEP ===
     if (stage === 'screening') {
         const result = symptom.evaluateScreening(newAnswers);
         
-        // Immediate Stop Conditions (Only for 911)
         if (result.action === 'stop' || result.triageLevel === 'call_911') {
-            updateTriage(result.triageLevel!, result.triageMessage);
+            if (result.triageLevel) updateTriage(result.triageLevel, result.triageMessage);
+            // If it's a STOP action with 'none' (like low fever), we show message and stop.
+            if (result.action === 'stop' && result.triageLevel === 'none' && result.triageMessage) {
+                 addMessage(result.triageMessage, 'bot');
+            }
             completeSingleSymptom();
             return;
         }
         
-        // Triage Level Increase (But DO NOT Stop/Skip for Amber/Blue)
         if (result.triageLevel && isHigherSeverity(highestSeverity, result.triageLevel)) {
              updateTriage(result.triageLevel, result.triageMessage);
         }
     }
-    // ===============================
 
     setIsTyping(true);
 
     setTimeout(() => {
       setIsTyping(false);
-      if (currentQuestionIndex < currentQList.length - 1) {
-        setCurrentQuestionIndex(prev => prev + 1);
-        askQuestion(currentQList[currentQuestionIndex + 1]);
+      // Determine next question index using Logic Engine
+      const nextIdx = getNextValidQuestionIndex(currentQList, currentQuestionIndex, newAnswers);
+      
+      if (nextIdx !== -1) {
+        setCurrentQuestionIndex(nextIdx);
+        askQuestion(currentQList[nextIdx]);
       } else {
         if (stage === 'screening') runScreeningEvaluation(newAnswers);
         else runFollowUpEvaluation(newAnswers);
@@ -288,9 +299,6 @@ const useSymptomChecker = () => {
     }
 
     if (result.action === 'stop' || result.triageLevel === 'call_911') {
-        if (result.triageLevel === 'none' && result.action === 'stop' && result.triageMessage) {
-            addMessage(result.triageMessage, 'bot');
-        }
         completeSingleSymptom();
         return;
     }
@@ -298,17 +306,25 @@ const useSymptomChecker = () => {
     if (result.action === 'branch' && result.branchToSymptomId) {
         if (!visitedSymptoms.includes(result.branchToSymptomId)) {
              addMessage(`Based on your answers, checking ${SYMPTOMS[result.branchToSymptomId].name} next.`, 'bot', false, true);
-             setSymptomQueue(prev => [result.branchToSymptomId!, ...prev.filter(id => id !== result.branchToSymptomId!)]); // Move to front
+             setSymptomQueue(prev => [result.branchToSymptomId!, ...prev.filter(id => id !== result.branchToSymptomId!)]);
         }
-        completeSingleSymptom(); // End screening for current, pick up next (branch)
+        completeSingleSymptom();
         return;
     }
 
     if (symptom.followUpQuestions && symptom.followUpQuestions.length > 0) {
         setStage('followup');
         setCurrentQuestionIndex(0);
-        addMessage("I need to ask a few follow-up questions.", 'bot');
-        setTimeout(() => askQuestion(symptom.followUpQuestions![0]), 500);
+        
+        // Ensure first question of followup is valid
+        const firstIdx = getNextValidQuestionIndex(symptom.followUpQuestions, -1, finalAnswers);
+        if (firstIdx !== -1) {
+             addMessage("I need to ask a few follow-up questions.", 'bot');
+             setCurrentQuestionIndex(firstIdx);
+             setTimeout(() => askQuestion(symptom.followUpQuestions![firstIdx]), 500);
+        } else {
+             completeSingleSymptom();
+        }
     } else {
         completeSingleSymptom();
     }
@@ -341,7 +357,6 @@ const useSymptomChecker = () => {
   };
 
   const completeSingleSymptom = () => {
-    // Update history UI
     setHistory(prev => prev.map(msg => {
         if (msg.symptomStatus === 'checking' && msg.symptomId === currentSymptomId) {
             const res = symptomResults[currentSymptomId!] || 'none';
@@ -361,9 +376,6 @@ const useSymptomChecker = () => {
         else if (result === 'notify_care_team') statusText = "Notify Care Team";
         else if (result === 'refer_provider') statusText = "Contact Provider";
         
-        // Avoid duplicate message if the logic already sent a specific message (like Low Temp warning)
-        // Check if last message content is the specific low temp msg
-        // Actually, easiest is just to add it. It clarifies the status.
         addMessage(`${name} Assessment Complete. Status: ${statusText}`, 'bot', false, true);
     }
     
@@ -427,12 +439,9 @@ function App() {
   const [textInput, setTextInput] = useState('');
   const [multiSelect, setMultiSelect] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // Dashboard Multi-Select State
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
 
-  // References for scroll
   const emergencyRef = useRef<HTMLDivElement>(null);
   const commonRef = useRef<HTMLDivElement>(null);
   const otherRef = useRef<HTMLDivElement>(null);
@@ -455,7 +464,6 @@ function App() {
   useEffect(() => {
       const timer = setTimeout(() => {
         if (scrollRef.current) {
-            // Fix: Check stage to decide scroll direction
             if (stage === 'selection') {
                  scrollRef.current.scrollTop = 0;
             } else {
@@ -485,7 +493,6 @@ function App() {
             return;
         }
     } else if (currentQuestion?.type === 'text') {
-        // Sanitization: trim and lowercase
         processedInput = processedInput.toLowerCase();
     }
 
@@ -504,7 +511,6 @@ function App() {
     );
   };
   
-  // Dashboard Card Click Handler
   const handleCardClick = (id: string) => {
       if (isMultiSelectMode) {
           setSelectedSymptoms(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
@@ -521,7 +527,6 @@ function App() {
       }
   };
 
-  // Filter Logic - Updated to exclude hidden symptoms
   const filteredSymptoms = Object.values(SYMPTOMS).filter(s => 
     !s.hidden && s.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -572,7 +577,6 @@ function App() {
         {stage === 'selection' ? (
             /* --- DASHBOARD VIEW --- */
             <div className="animate-fade-in pb-20">
-                
                 {/* Hero / Search Section */}
                 <div className="bg-teal-700 px-4 pt-10 pb-12 relative overflow-hidden bg-gradient-to-br from-teal-700 to-teal-900">
                     <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none mix-blend-overlay">
@@ -595,7 +599,6 @@ function App() {
                             />
                         </div>
                         
-                        {/* Multi-Select Toggle */}
                         <div className="flex justify-center items-center space-x-3 bg-teal-800/50 inline-block p-1 rounded-full backdrop-blur-sm">
                              <button 
                                 onClick={() => { setIsMultiSelectMode(false); setSelectedSymptoms([]); }}
@@ -627,8 +630,6 @@ function App() {
 
                 {/* Cards Container */}
                 <div className="max-w-5xl mx-auto px-4 mt-8 relative z-10 space-y-12">
-                    
-                    {/* Emergency Section */}
                     {(URGENT_SYMPTOMS.length > 0 || searchQuery === '') && (
                         <div ref={emergencyRef} className="scroll-mt-32">
                             <div className="flex items-center mb-4 pb-2 border-b border-slate-100">
@@ -644,7 +645,6 @@ function App() {
                         </div>
                     )}
 
-                    {/* Common Section */}
                     {(COMMON_SYMPTOMS.length > 0 || searchQuery === '') && (
                         <div ref={commonRef} className="scroll-mt-32">
                             <div className="flex items-center mb-4 pb-2 border-b border-slate-100">
@@ -660,7 +660,6 @@ function App() {
                         </div>
                     )}
 
-                    {/* Other Section */}
                     {(OTHER_SYMPTOMS.length > 0 || searchQuery === '') && (
                         <div ref={otherRef} className="scroll-mt-32">
                             <div className="flex items-center mb-4 pb-2 border-b border-slate-100">
@@ -677,12 +676,11 @@ function App() {
                     )}
                     
                     <div className="text-center border-t border-slate-200 pt-10 pb-8">
-                        <p className="text-xs text-slate-400 mb-1">OncoLife Triage Protocol v1.4 • 27 Clinical Pathways Loaded</p>
+                        <p className="text-xs text-slate-400 mb-1">OncoLife Triage Protocol v1.5 • 27 Clinical Pathways Loaded</p>
                         <p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">OncoLife is Powered by KanasuLabs | 2025</p>
                     </div>
                 </div>
                 
-                {/* Floating Action Button for Multi-Select */}
                 {isMultiSelectMode && selectedSymptoms.length > 0 && (
                     <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 animate-fade-in w-full max-w-sm px-4">
                         <button 
@@ -698,7 +696,6 @@ function App() {
         ) : (
             /* --- CHAT VIEW --- */
             <div className="p-4 max-w-2xl mx-auto w-full">
-                {/* Progress Bar */}
                 <div className="sticky top-0 bg-slate-50 z-10 pt-4 pb-2">
                    <ProgressBar stage={stage} />
                 </div>
@@ -708,7 +705,6 @@ function App() {
                 ))}
                 {isTyping && <TypingIndicator />}
                 
-                {/* Completion Result Card */}
                 {stage === 'complete' && (
                     <div className="animate-fade-in mt-8 mb-8">
                         {highestSeverity === 'call_911' && (
@@ -775,7 +771,6 @@ function App() {
                             </div>
                         )}
 
-                        {/* Assessment Summary List */}
                         {visitedSymptoms.length > 0 && (
                             <div className="mt-8 bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
                                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 pb-2 border-b border-slate-50">Session Summary</h3>
@@ -833,7 +828,6 @@ function App() {
         )}
       </div>
 
-      {/* Input Controls */}
       {stage !== 'selection' && stage !== 'complete' && (
         <div className="bg-white/90 backdrop-blur-md border-t border-slate-200 p-4 pb-8 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.05)] w-full shrink-0 z-30 max-h-[55dvh] overflow-y-auto overscroll-contain">
             <div className="max-w-2xl mx-auto animate-fade-in">

@@ -36,6 +36,7 @@ interface SymptomDef {
   evaluateScreening: (answers: Record<string, any>) => LogicResult;
   followUpQuestions?: Question[];
   evaluateFollowUp?: (answers: Record<string, any>) => LogicResult;
+  hidden?: boolean; // For progressive disclosure (e.g. hiding specific pains)
 }
 
 // --- ICONS ---
@@ -85,7 +86,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
     category: 'emergency',
     icon: Icons.Lungs,
     screeningQuestions: [
-      { id: 'q1', text: 'Are you having Trouble Breathing or Shortness of Breath?', type: 'yes_no' }
+      { id: 'q1', text: 'I understand. Are you having Trouble Breathing or Shortness of Breath right now?', type: 'yes_no' }
     ],
     evaluateScreening: (answers) => {
       if (answers['q1'] === true) return { action: 'stop', triageLevel: 'call_911', triageMessage: 'Patient reports Trouble Breathing or Shortness of Breath.' };
@@ -96,6 +97,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
     id: 'URG-102',
     name: 'Chest Pain',
     category: 'emergency',
+    hidden: true, // Hidden for hierarchy - accessed via "Pain"
     icon: Icons.Heart,
     screeningQuestions: [
       { id: 'q1', text: 'Are you having Chest pain?', type: 'yes_no' }
@@ -157,6 +159,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       id: 'URG-109',
       name: 'Headache',
       category: 'other',
+      hidden: true, // Hidden for hierarchy
       icon: Icons.Head,
       screeningQuestions: [
           { id: 'worst_ever', text: 'Is this the worst headache you’ve ever had?', type: 'yes_no' },
@@ -182,6 +185,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       id: 'URG-110',
       name: 'Severe Abdominal Pain',
       category: 'other',
+      hidden: true, // Hidden for hierarchy
       icon: Icons.Stomach,
       screeningQuestions: [
           { id: 'pain_scale', text: 'Rate your pain on a scale from 1-10 with 10 being the worst pain.', type: 'number' },
@@ -207,6 +211,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       id: 'URG-111',
       name: 'Leg/Calf Pain',
       category: 'other',
+      hidden: true, // Hidden for hierarchy
       icon: Icons.Leg,
       screeningQuestions: [
           { id: 'description', text: 'Please explain the symptoms you are having?', type: 'text' }
@@ -220,6 +225,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       id: 'URG-114',
       name: 'Port Site Pain',
       category: 'other',
+      hidden: true, // Hidden for hierarchy
       icon: Icons.Port,
       screeningQuestions: [
           { id: 'infection_signs', text: 'Do you have redness, drainage, or chills?', type: 'yes_no' },
@@ -241,7 +247,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
     category: 'common',
     icon: Icons.Water,
     screeningQuestions: [
-      { id: 'urine_color', text: 'What color is your urine?', type: 'choice', options: [{label: 'Clear/Pale', value: 'clear'}, {label: 'Yellow', value: 'yellow'}, {label: 'Dark/Amber', value: 'dark'}] },
+      { id: 'urine_color', text: 'I want to make sure you\'re staying hydrated. What color is your urine?', type: 'choice', options: [{label: 'Clear/Pale', value: 'clear'}, {label: 'Yellow', value: 'yellow'}, {label: 'Dark/Amber', value: 'dark'}] },
       { id: 'urine_amt', text: 'Is the amount of urine a lot less over the last 12 hours?', type: 'yes_no' },
       { id: 'thirsty', text: 'Are you very thirsty?', type: 'yes_no' },
       { id: 'lightheaded', text: 'Are you lightheaded?', type: 'yes_no' },
@@ -272,7 +278,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
     category: 'common',
     icon: Icons.Thermometer,
     screeningQuestions: [
-      { id: 'temp', text: '1. What is your temperature? (Enter number, e.g., 101.5)', type: 'number' },
+      { id: 'temp', text: 'Fever can be worrying. What is your temperature? (Enter number, e.g., 101.5)', type: 'number' },
       { id: 'meds', text: '2. What medications have you taken to lower your temperature? If none, state none.', type: 'text' },
       { id: 'med_freq', text: '3. If taking medications, what did you take and how often?', type: 'text' }
     ],
@@ -313,7 +319,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
     category: 'common',
     icon: Icons.Nausea,
     screeningQuestions: [
-      { id: 'days', text: 'How many days have you been nauseated?', type: 'choice', options: [{label: 'Less than a day', value: '<1'}, {label: 'Last 24 hours', value: '24h'}, {label: '2-3 days', value: '2-3d'}, {label: '>3 days', value: '>3d'}] },
+      { id: 'days', text: 'I\'m sorry to hear you\'re feeling nauseous. How long has this been going on?', type: 'choice', options: [{label: 'Less than a day', value: '<1'}, {label: 'Last 24 hours', value: '24h'}, {label: '2-3 days', value: '2-3d'}, {label: '>3 days', value: '>3d'}] },
       { id: 'intake', text: 'Have you been able to eat and drink without much difficulty in the last 24 hours?', type: 'choice', options: [
           {label: 'Reduced but can still eat/drink', value: 'reduced'},
           {label: 'Difficulty keeping food/fluids down', value: 'difficulty'},
@@ -359,7 +365,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       category: 'common',
       icon: Icons.Vomit,
       screeningQuestions: [
-          { id: 'days', text: 'How many days have you been vomiting?', type: 'text' },
+          { id: 'days', text: 'Vomiting can be very draining. How many days have you been vomiting?', type: 'text' },
           { id: 'vom_freq', text: 'How many times have you vomited in the last 24 hours?', type: 'choice', options: [{label: '1-2 times', value: 'low'}, {label: '3-5 times', value: 'med'}, {label: '>6 times', value: 'high'}]},
           { id: 'intake_12h', text: 'How is your oral intake over the last 12 hours?', type: 'choice', options: [
               {label: 'Reduced but okay', value: 'ok'}, {label: 'Difficulty keeping food down', value: 'hard'}, 
@@ -396,7 +402,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       category: 'common',
       icon: Icons.Poop,
       screeningQuestions: [
-          { id: 'days', text: 'How many days have you had diarrhea?', type: 'number' },
+          { id: 'days', text: 'I know this is uncomfortable. How many days have you had diarrhea?', type: 'number' },
           { id: 'stools', text: 'How many loose stools have you had in the last 24 hours?', type: 'number' },
           { id: 'stool_type', text: 'Are you experiencing any of these?', type: 'multiselect', options: [
               {label: 'My stool is black', value: 'black'}, {label: 'My stool has blood', value: 'blood'}, {label: 'My stool has mucus', value: 'mucus'}, {label: 'None of the above', value: 'none'}
@@ -685,11 +691,11 @@ const SYMPTOMS: Record<string, SymptomDef> = {
   },
   'PAI-213': {
       id: 'PAI-213',
-      name: 'Pain / General Aches',
+      name: 'Pain', // Renamed from "Pain / General Aches" for hierarchy
       category: 'other',
       icon: Icons.Pain,
       screeningQuestions: [
-          { id: 'loc', text: 'Where is your pain?', type: 'multiselect', options: [
+          { id: 'loc', text: 'I\'m here to help with your pain. Where does it hurt?', type: 'multiselect', options: [
               {label: 'Chest', value: 'chest'}, {label: 'Head', value: 'head'}, {label: 'Stomach', value: 'stomach'}, 
               {label: 'Legs/Calf', value: 'legs'}, {label: 'Mouth/Throat', value: 'mouth'}, {label: 'Joints/Muscles', value: 'joints'},
               {label: 'Nerve (Burning/Tingling)', value: 'nerve'}, {label: 'General/Fatigue', value: 'fatigue'}, {label: 'Port Site', value: 'port'}
@@ -733,6 +739,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       id: 'URG-112',
       name: 'Joint/Muscle Pain',
       category: 'other',
+      hidden: true, // Hidden for hierarchy
       icon: Icons.Joint,
       screeningQuestions: [
            { id: 'controlled', text: 'Is it controlled with your usual pain medicine?', type: 'yes_no' }
@@ -746,6 +753,7 @@ const SYMPTOMS: Record<string, SymptomDef> = {
       id: 'URG-113',
       name: 'General Aches',
       category: 'other',
+      hidden: true, // Hidden for hierarchy
       icon: Icons.Ache,
       screeningQuestions: [
            { id: 'better', text: 'Does it get better with rest/meds?', type: 'yes_no' },
@@ -995,7 +1003,7 @@ const ProgressBar: React.FC<{ stage: string }> = ({ stage }) => {
 
 const useSymptomChecker = () => {
   const [history, setHistory] = useState<Message[]>([
-    { id: 'welcome', sender: 'bot', content: 'Hello. I am the OncoLife Assistant. Please select a symptom below. If this is a medical emergency, call 911 immediately.' }
+    { id: 'welcome', sender: 'bot', content: 'Hello. I am Ruby, your compassionate oncology assistant. Please select a symptom below so I can help you. If this is a medical emergency, call 911 immediately.' }
   ]);
   const [currentSymptomId, setCurrentSymptomId] = useState<string | null>(null);
   const [currentSymptomMsgId, setCurrentSymptomMsgId] = useState<string | null>(null);
@@ -1239,7 +1247,7 @@ const useSymptomChecker = () => {
     setVisitedSymptoms([]);
     setSymptomResults({});
     setSymptomQueue([]);
-    setHistory([{ id: Date.now().toString(), sender: 'bot', content: 'Hello. I am the OncoLife Assistant. Please select a symptom below.' }]);
+    setHistory([{ id: Date.now().toString(), sender: 'bot', content: 'Hello. I am Ruby, your compassionate oncology assistant. Please select a symptom below so I can help you.' }]);
   };
 
   const continueSession = () => {
@@ -1319,7 +1327,28 @@ function App() {
 
   const handleSubmitText = () => {
     if (!textInput.trim()) return;
-    handleAnswer(textInput);
+    
+    let processedInput = textInput.trim();
+
+    // Data Integrity Check: Negative Numbers
+    if (currentQuestion?.type === 'number') {
+        const val = parseFloat(processedInput);
+        if (val < 0) {
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-24 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg z-50 animate-fade-in';
+            toast.innerText = 'Please enter a positive number.';
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                if(document.body.contains(toast)) document.body.removeChild(toast);
+            }, 2000);
+            return;
+        }
+    } else if (currentQuestion?.type === 'text') {
+        // Sanitization: trim and lowercase
+        processedInput = processedInput.toLowerCase();
+    }
+
+    handleAnswer(processedInput);
     setTextInput('');
   };
 
@@ -1351,9 +1380,9 @@ function App() {
       }
   };
 
-  // Filter Logic
+  // Filter Logic - Updated to exclude hidden symptoms
   const filteredSymptoms = Object.values(SYMPTOMS).filter(s => 
-    s.name.toLowerCase().includes(searchQuery.toLowerCase())
+    !s.hidden && s.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const URGENT_SYMPTOMS = filteredSymptoms.filter(s => s.category === 'emergency');
@@ -1722,6 +1751,7 @@ function App() {
                     value={textInput}
                     onChange={(e) => setTextInput(e.target.value)}
                     placeholder={currentQuestion.type === 'number' ? "Enter number..." : "Type your answer..."}
+                    min="0"
                     className="flex-1 p-4 rounded-2xl border border-slate-200 text-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent shadow-inner bg-slate-50"
                     onKeyDown={(e) => e.key === 'Enter' && handleSubmitText()}
                     autoFocus

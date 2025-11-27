@@ -103,7 +103,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
     category: 'emergency',
     icon: Icons.Lungs,
     screeningQuestions: [
-      { id: 'q1', text: 'I understand. Are you having Trouble Breathing or Shortness of Breath right now?', type: 'yes_no' }
+      { id: 'q1', text: 'Are you having Trouble Breathing or Shortness of Breath right now?', type: 'yes_no' }
     ],
     evaluateScreening: (answers) => {
       if (answers['q1'] === true) return { action: 'stop', triageLevel: 'call_911', triageMessage: 'Patient reports Trouble Breathing or Shortness of Breath.' };
@@ -114,7 +114,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
     id: 'URG-102',
     name: 'Chest Pain',
     category: 'emergency',
-    hidden: true,
+    hidden: true, // Triggered by cross-logic or global interrupt
     icon: Icons.Heart,
     screeningQuestions: [
       { id: 'q1', text: 'Are you having Chest pain?', type: 'yes_no' }
@@ -192,7 +192,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       evaluateScreening: (answers) => {
           const symps = answers['neuro_symptoms'] || [];
           if (answers['worst_ever'] === true || (symps.length > 0 && !symps.includes('none'))) {
-              return { action: 'stop', triageLevel: 'call_911', triageMessage: 'Severe Headache reported.' };
+              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'Severe Headache reported.' };
           }
           return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Headache reported.' };
       }
@@ -217,7 +217,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
           const score = parseInt(answers['pain_scale']);
           const flags = answers['red_flags'] || [];
           if ((!isNaN(score) && score > 7) || (flags.length > 0 && !flags.includes('none'))) {
-              return { action: 'stop', triageLevel: 'call_911', triageMessage: 'Severe Abdominal Pain (>7/10) or Red Flags.' };
+              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'Severe Abdominal Pain (>7/10) or Red Flags.' };
           }
           return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Abdominal pain reported.' };
       }

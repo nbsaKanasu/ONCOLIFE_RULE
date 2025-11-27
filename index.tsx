@@ -304,6 +304,12 @@ const useSymptomChecker = () => {
         completeSingleSymptom();
         return;
     }
+    
+    // Stop if Alert is met during Screening Phase (Step 2 in protocol)
+    if (result.triageLevel === 'notify_care_team') {
+        completeSingleSymptom();
+        return;
+    }
 
     if (result.action === 'branch' && result.branchToSymptomId) {
         if (!visitedSymptoms.includes(result.branchToSymptomId)) {

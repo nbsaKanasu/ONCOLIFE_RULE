@@ -59,8 +59,46 @@ export const DEHYDRATION_SIGNS_OPTIONS: Option[] = [
     {label: 'Amount of urine is a lot less over last 12 hours', value: 'less_urine'},
     {label: 'Very thirsty', value: 'thirsty'},
     {label: 'Lightheaded', value: 'lightheaded'},
-    {label: 'HR >100 or BP <100 (if known)', value: 'vitals'},
+    {label: 'HR >100 or BP <100', value: 'vitals'},
     {label: 'None of the above', value: 'none'}
+];
+
+// --- MEDICATION OPTIONS ---
+
+const MEDS_NAUSEA: Option[] = [
+    {label: 'Compazine (prochlorperazine) 5 mg every 6 hours', value: 'compazine'},
+    {label: 'Zofran (ondansetron) 8 mg every 8 hours', value: 'zofran'},
+    {label: 'Olanzapine 5 mg daily', value: 'olanzapine'},
+    {label: 'Other', value: 'other'},
+    {label: 'None', value: 'none'}
+];
+
+const MEDS_DIARRHEA: Option[] = [
+    {label: 'Imodium (loperamide) 4 mg then 2 mg after each loose stool', value: 'imodium'},
+    {label: 'Lomotil (diphenoxylate/atropine) 1-2 tablets', value: 'lomotil'},
+    {label: 'Other', value: 'other'},
+    {label: 'None', value: 'none'}
+];
+
+const MEDS_COUGH: Option[] = [
+    {label: 'Robitussin (dextromethorphan) 10-20 mg every 4 hours', value: 'robitussin_10_20'},
+    {label: 'Robitussin (dextromethorphan) 30 mg every 6-8 hours', value: 'robitussin_30'},
+    {label: 'Other', value: 'other'},
+    {label: 'None', value: 'none'}
+];
+
+const MEDS_MOUTH: Option[] = [
+    {label: 'Magic Mouthwash Rinse 5–10 mL every 4-6 hours', value: 'magic_mouthwash'},
+    {label: 'Other', value: 'other'},
+    {label: 'None', value: 'none'}
+];
+
+const DURATION_OPTIONS_SHORT: Option[] = [
+    {label: 'Less than 24 hours', value: '<24h'},
+    {label: '1-2 days', value: '1-2d'},
+    {label: '3-7 days', value: '3-7d'},
+    {label: 'More than a week', value: '>1w'},
+    {label: 'More than 3 weeks', value: '>3w'}
 ];
 
 // --- ICONS ---
@@ -114,7 +152,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
     id: 'URG-102',
     name: 'Chest Pain',
     category: 'emergency',
-    hidden: true, // Triggered by cross-logic or global interrupt
+    hidden: true,
     icon: Icons.Heart,
     screeningQuestions: [
       { id: 'q1', text: 'Are you having Chest pain?', type: 'yes_no' }
@@ -330,12 +368,22 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
     ],
     evaluateScreening: (answers) => {
       const t = parseFloat(answers['temp']);
+      // Case 1: Low grade
       if (!isNaN(t) && t <= 100.3) {
            return { action: 'stop', triageLevel: 'none', triageMessage: 'Please take your temperature frequently, we get concerned if the temperature is >100.3.' };
       }
+      // Case 2: High grade (>100.3)
       if (!isNaN(t) && t > 100.3) {
-        // Triggered the high temp question flow
-        return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'Temp > 100.3F with associated check.' };
+          const symps = answers['high_temp_symptoms'] || [];
+          // If multiselect not answered yet, just continue to let user answer
+          if (!answers.hasOwnProperty('high_temp_symptoms')) {
+              return { action: 'continue' };
+          }
+          // Eval Checklist
+          if (symps.length > 0 && !symps.includes('none')) {
+              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'Fever > 100.3F with associated symptoms.' };
+          }
+          return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'Fever > 100.3F (Elevated Temperature).' };
       }
       return { action: 'continue' };
     }
@@ -349,8 +397,8 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       { id: 'days', text: 'I\'m sorry to hear you\'re feeling nauseous. How long has this been going on?', type: 'choice', options: [{label: 'Less than a day', value: '<1'}, {label: 'Last 24 hours', value: '24h'}, {label: '2-3 days', value: '2-3d'}, {label: '>3 days', value: '>3d'}] },
       { id: 'trend', text: 'Is the nausea the same or worsening?', type: 'choice', options: [{label: 'Worsening/Same', value: 'bad'}, {label: 'Improving', value: 'good'}], condition: (a) => a['days'] === '>3d' },
       { id: 'intake', text: 'How is your oral intake?', type: 'choice', options: ORAL_INTAKE_OPTIONS },
-      { id: 'meds', text: 'What anti-nausea medications are you taking?', type: 'text' },
-      { id: 'med_freq', text: 'How often are you taking these medications?', type: 'text' },
+      { id: 'meds', text: 'What anti-nausea medications are you taking?', type: 'choice', options: MEDS_NAUSEA },
+      { id: 'med_freq', text: 'How often are you taking these medications?', type: 'text', condition: (a) => a['meds'] !== 'none' },
       { id: 'severity_post_meds', text: 'Rate your nausea after taking medication:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]}
     ],
     evaluateScreening: (answers) => {
@@ -385,18 +433,18 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       category: 'common',
       icon: Icons.Vomit,
       screeningQuestions: [
-          { id: 'days', text: 'How many days have you been vomiting?', type: 'text' },
+          { id: 'days', text: 'How many days have you been vomiting?', type: 'number' },
           { id: 'vom_freq', text: 'How many times have you vomited in the last 24 hours?', type: 'choice', options: [{label: '1-2 times', value: 'low'}, {label: '3-5 times', value: 'med'}, {label: '>6 times', value: 'high'}]},
           { id: 'intake_12h', text: 'How is your oral intake over the last 12 hours?', type: 'choice', options: ORAL_INTAKE_OPTIONS },
-          { id: 'meds', text: 'What medications for vomiting are you taking?', type: 'text' },
-          { id: 'med_freq', text: 'How often are you taking them?', type: 'text' },
+          { id: 'meds', text: 'What medications for vomiting are you taking?', type: 'choice', options: MEDS_NAUSEA },
+          { id: 'med_freq', text: 'How often are you taking them?', type: 'text', condition: (a) => a['meds'] !== 'none' },
           { id: 'severity_post_med', text: 'Rate your vomiting after taking medication:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]}
       ],
       evaluateScreening: (answers) => {
           if (answers['vom_freq'] === 'high' || answers['intake_12h'] === 'none' || answers['severity_post_med'] === 'sev') {
               return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: '>6 episodes in 24 hrs OR No intake 12h OR Severe.' };
           }
-          if (answers['severity_post_med'] === 'mod') { // Add logic for duration > 3d if needed, but for now strict moderate catch
+          if (answers['severity_post_med'] === 'mod') { 
               return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Moderate Vomiting reported.' };
           }
           return { action: 'continue'};
@@ -425,7 +473,8 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
           ]},
           { id: 'pain', text: 'Are you having any abdominal pain or cramping?', type: 'yes_no' },
           { id: 'pain_sev', text: 'Rate your abdominal pain:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}], condition: (a) => a['pain'] === true },
-          { id: 'meds', text: 'What medications for diarrhea are you taking?', type: 'text' },
+          { id: 'meds', text: 'What medications for diarrhea are you taking?', type: 'choice', options: MEDS_DIARRHEA },
+          { id: 'med_freq', text: 'How often are you taking them?', type: 'text', condition: (a) => a['meds'] !== 'none' },
           { id: 'severity_post_med', text: 'Rate your diarrhea after medication:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]},
           { id: 'dehydration_scr', text: 'Any signs of dehydration?', type: 'multiselect', options: DEHYDRATION_SIGNS_OPTIONS },
           { id: 'intake', text: 'Able to eat/drink normally?', type: 'choice', options: ORAL_INTAKE_OPTIONS }
@@ -466,13 +515,17 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       icon: Icons.Toilet,
       screeningQuestions: [
           { id: 'days', text: 'How many days has it been since you had a bowel movement?', type: 'number' },
-          { id: 'gas', text: 'Are you passing gas?', type: 'yes_no' },
+          { id: 'days_gas', text: 'How many days has it been since you passed gas?', type: 'number' },
           { id: 'severity', text: 'Rate your constipation:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]}
       ],
       evaluateScreening: (answers) => {
           const days = parseFloat(answers['days']);
+          const gas = parseFloat(answers['days_gas']);
           if (!isNaN(days) && days > 2) {
               return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'No bowel movement for > 2 days (48 hours).' };
+          }
+          if (!isNaN(gas) && gas > 2) {
+               return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'No gas passed for > 2 days.' };
           }
           if (answers['severity'] === 'sev') return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Severe Constipation.' };
           return { action: 'continue' };
@@ -480,7 +533,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       followUpQuestions: [
           { id: 'abd_pain', text: 'Are you having any abdominal pain?', type: 'yes_no' },
           { id: 'pain_sev', text: 'Rate abdominal pain:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}], condition: (a) => a['abd_pain'] === true },
-          { id: 'meds', text: 'What stool softeners or medications are you taking? If none, say none.', type: 'text' },
+          { id: 'meds', text: 'What stool softeners or medications are you taking?', type: 'text' },
           { id: 'dehydration', text: 'Are you having any signs of dehydration?', type: 'multiselect', options: DEHYDRATION_SIGNS_OPTIONS }
       ],
       evaluateFollowUp: (answers) => {
@@ -527,8 +580,8 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       screeningQuestions: [
           { id: 'intake', text: 'Are you able to eat and drink normally?', type: 'choice', options: ORAL_INTAKE_OPTIONS },
           { id: 'severity', text: 'Rate your mouth sores', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]},
-          { id: 'remedy', text: 'What remedies have you tried?', type: 'text' },
-          { id: 'freq', text: 'How often have you tried it?', type: 'text' },
+          { id: 'remedy', text: 'What remedies have you tried?', type: 'choice', options: MEDS_MOUTH },
+          { id: 'freq', text: 'How often have you tried it?', type: 'text', condition: (a) => a['remedy'] !== 'none' },
           { id: 'helped', text: 'Has it helped?', type: 'yes_no' }
       ],
       evaluateScreening: (answers) => {
@@ -626,7 +679,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
           const t = parseFloat(answers['temp']);
           const infusionIssue = inf.includes('swelling') || inf.includes('wound');
           const adlIssue = answers['adl'] === true;
-          const feverIssue = !isNaN(t) && t > 100.4;
+          const feverIssue = !isNaN(t) && t > 100.3;
           const coverageIssue = answers['coverage'] === true;
 
           if (infusionIssue || adlIssue || feverIssue || coverageIssue) {
@@ -644,6 +697,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       evaluateFollowUp: (answers) => {
           const symps = answers['symptoms'] || [];
           if (symps.includes('unwell')) return { action: 'branch', branchToSymptomId: 'FEV-202' };
+          if (answers['worse'] === true && parseFloat(answers['days']) > 2) return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Worsening rash > 2 days.' };
           return { action: 'continue' };
       }
   },
@@ -660,7 +714,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
           ]},
           { id: 'severity', text: 'Rate your pain', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]},
           { id: 'interfere', text: 'Does it interfere with daily activities?', type: 'yes_no' },
-          { id: 'fever', text: 'Fever over 100.4F?', type: 'yes_no' }
+          { id: 'fever', text: 'Fever over 100.3F?', type: 'yes_no' }
       ],
       evaluateScreening: (answers) => {
           const loc = answers['loc'] || [];
@@ -715,11 +769,11 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       category: 'other',
       icon: Icons.Cough,
       screeningQuestions: [
-          { id: 'days', text: 'How long have you had the cough?', type: 'choice', options: [{label: 'Less than 24 hours', value: '<24h'}, {label: '1-2 days', value: '1-2d'}, {label: '3-7 days', value: '3-7d'}, {label: '> 1 week', value: '1w'}, {label: '> 3 weeks', value: '3w'}] },
+          { id: 'days', text: 'How long have you had the cough?', type: 'choice', options: DURATION_OPTIONS_SHORT },
           { id: 'temp', text: 'What is your temperature?', type: 'number' },
           { id: 'mucus', text: 'Is there any mucus with your cough?', type: 'yes_no' },
-          { id: 'meds', text: 'What medications have you used to help with your cough?', type: 'text' },
-          { id: 'helping', text: 'Is it helping?', type: 'yes_no' },
+          { id: 'meds', text: 'What medications have you used to help with your cough?', type: 'choice', options: MEDS_COUGH },
+          { id: 'helping', text: 'Is it helping?', type: 'yes_no', condition: (a) => a['meds'] !== 'none' },
           { id: 'prevent', text: 'Does the cough prevent you from doing your daily activities?', type: 'yes_no' },
           { id: 'chest_pain', text: 'Do you have chest pain or shortness of breath?', type: 'yes_no' },
           { id: 'o2_check', text: 'Do you have ability to check your oxygen saturation at home?', type: 'yes_no' },
@@ -733,10 +787,10 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
           const o2 = parseFloat(answers['o2']);
           const temp = parseFloat(answers['temp']);
           const lowO2 = !isNaN(o2) && o2 < 92;
-          const highTemp = !isNaN(temp) && temp > 100.4;
+          const highTemp = !isNaN(temp) && temp > 100.3;
 
           if (answers['prevent'] === true || highTemp || lowO2) {
-               return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Cough prevents ADLs OR Temp >100.4F OR O2 <92%.' };
+               return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Cough prevents ADLs OR Temp >100.3F OR O2 <92%.' };
           }
           return { action: 'continue' };
       },
@@ -764,7 +818,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       },
       followUpQuestions: [
           { id: 'motor', text: 'Is it hard to do things like button your shirt, type, write, or walk long distances?', type: 'yes_no' },
-          { id: 'worse', text: 'Has the numbness or tingling gotten worse in the past week or moved higher up arms/legs?', type: 'yes_no' },
+          { id: 'worsening', text: 'Has the numbness or tingling gotten worse in the past week or moved higher up arms/legs?', type: 'yes_no' },
           { id: 'balance', text: 'Have you had trouble feeling the ground when walking, or felt unsteady or off balance?', type: 'yes_no' },
           { id: 'meds', text: 'Are you taking any medication for neuropathy?', type: 'yes_no' }
       ],

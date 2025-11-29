@@ -264,11 +264,12 @@ const useSymptomChecker = () => {
             if (result.action === 'stop' && result.triageLevel === 'none' && result.triageMessage) {
                  addMessage(result.triageMessage, 'bot');
             }
+            // IF Action Stop is hit, we stop the symptom.
             completeSingleSymptom();
             return;
         }
         
-        // For alerts (notify_care_team), we update state but continue asking questions
+        // For alerts (notify_care_team), we update state but continue asking questions (unless protocol specifically stopped above)
         if (result.triageLevel && isHigherSeverity(highestSeverity, result.triageLevel)) {
              updateTriage(result.triageLevel, result.triageMessage);
         }
@@ -305,11 +306,12 @@ const useSymptomChecker = () => {
         return;
     }
     
-    // Stop if Alert is met during Screening Phase (Step 2 in protocol)
-    if (result.triageLevel === 'notify_care_team') {
-        completeSingleSymptom();
-        return;
-    }
+    // Stop if Alert is met during Screening Phase
+    // NOTE: Master v3.0 logic often requires checking followup even if alert met, 
+    // but standard flow is usually: if Alert Met in Screening -> Stop.
+    // We will follow the evaluateScreening result. If it returned 'continue', we continue.
+    // If we are here, nextIdx was -1 (no more screening Qs).
+    // So if result.action was continue, we move to followup.
 
     if (result.action === 'branch' && result.branchToSymptomId) {
         if (!visitedSymptoms.includes(result.branchToSymptomId)) {
@@ -684,7 +686,7 @@ function App() {
                     )}
                     
                     <div className="text-center border-t border-slate-200 pt-10 pb-8">
-                        <p className="text-xs text-slate-400 mb-1">OncoLife Triage Protocol v1.5 • 27 Clinical Pathways Loaded</p>
+                        <p className="text-xs text-slate-400 mb-1">OncoLife Triage Protocol v3.0 • Clinical Pathways Loaded</p>
                         <p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">OncoLife is Powered by KanasuLabs | 2025</p>
                     </div>
                 </div>

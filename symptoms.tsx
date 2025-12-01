@@ -75,7 +75,7 @@ const MEDS_NAUSEA: Option[] = [
 
 const MEDS_DIARRHEA: Option[] = [
     {label: 'Imodium (loperamide) 4 mg then 2 mg after each loose stool', value: 'imodium'},
-    {label: 'Lomotil (diphenoxylate/atropine) 1-2 tablets', value: 'lomotil'},
+    {label: 'Lomotil (diphenoxylate/atropine) 1-2 tablets up to 4 times daily', value: 'lomotil'},
     {label: 'Other', value: 'other'},
     {label: 'None', value: 'none'}
 ];
@@ -398,7 +398,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       { id: 'trend', text: 'Is the nausea the same or worsening?', type: 'choice', options: [{label: 'Worsening/Same', value: 'bad'}, {label: 'Improving', value: 'good'}], condition: (a) => a['days'] === '>3d' },
       { id: 'intake', text: 'How is your oral intake?', type: 'choice', options: ORAL_INTAKE_OPTIONS },
       { id: 'meds', text: 'What anti-nausea medications are you taking?', type: 'choice', options: MEDS_NAUSEA },
-      { id: 'med_freq', text: 'How often are you taking these medications?', type: 'text', condition: (a) => a['meds'] !== 'none' },
+      { id: 'med_freq', text: 'How often are you taking these medications?', type: 'text', condition: (a) => a['meds'] === 'other' },
       { id: 'severity_post_meds', text: 'Rate your nausea after taking medication:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]}
     ],
     evaluateScreening: (answers) => {
@@ -437,7 +437,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
           { id: 'vom_freq', text: 'How many times have you vomited in the last 24 hours?', type: 'choice', options: [{label: '1-2 times', value: 'low'}, {label: '3-5 times', value: 'med'}, {label: '>6 times', value: 'high'}]},
           { id: 'intake_12h', text: 'How is your oral intake over the last 12 hours?', type: 'choice', options: ORAL_INTAKE_OPTIONS },
           { id: 'meds', text: 'What medications for vomiting are you taking?', type: 'choice', options: MEDS_NAUSEA },
-          { id: 'med_freq', text: 'How often are you taking them?', type: 'text', condition: (a) => a['meds'] !== 'none' },
+          { id: 'med_freq', text: 'How often are you taking them?', type: 'text', condition: (a) => a['meds'] === 'other' },
           { id: 'severity_post_med', text: 'Rate your vomiting after taking medication:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]}
       ],
       evaluateScreening: (answers) => {
@@ -474,7 +474,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
           { id: 'pain', text: 'Are you having any abdominal pain or cramping?', type: 'yes_no' },
           { id: 'pain_sev', text: 'Rate your abdominal pain:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}], condition: (a) => a['pain'] === true },
           { id: 'meds', text: 'What medications for diarrhea are you taking?', type: 'choice', options: MEDS_DIARRHEA },
-          { id: 'med_freq', text: 'How often are you taking them?', type: 'text', condition: (a) => a['meds'] !== 'none' },
+          { id: 'med_freq', text: 'How often are you taking them?', type: 'text', condition: (a) => a['meds'] === 'other' },
           { id: 'severity_post_med', text: 'Rate your diarrhea after medication:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]},
           { id: 'dehydration_scr', text: 'Any signs of dehydration?', type: 'multiselect', options: DEHYDRATION_SIGNS_OPTIONS },
           { id: 'intake', text: 'Able to eat/drink normally?', type: 'choice', options: ORAL_INTAKE_OPTIONS }
@@ -581,7 +581,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
           { id: 'intake', text: 'Are you able to eat and drink normally?', type: 'choice', options: ORAL_INTAKE_OPTIONS },
           { id: 'severity', text: 'Rate your mouth sores', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]},
           { id: 'remedy', text: 'What remedies have you tried?', type: 'choice', options: MEDS_MOUTH },
-          { id: 'freq', text: 'How often have you tried it?', type: 'text', condition: (a) => a['remedy'] !== 'none' },
+          { id: 'freq', text: 'How often have you tried it?', type: 'text', condition: (a) => a['remedy'] === 'other' },
           { id: 'helped', text: 'Has it helped?', type: 'yes_no' }
       ],
       evaluateScreening: (answers) => {

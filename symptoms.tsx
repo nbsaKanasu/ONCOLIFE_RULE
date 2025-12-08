@@ -399,7 +399,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       { id: 'intake', text: 'How is your oral intake?', type: 'choice', options: ORAL_INTAKE_OPTIONS },
       { id: 'meds', text: 'What anti-nausea medications are you taking?', type: 'choice', options: MEDS_NAUSEA },
       { id: 'med_freq', text: 'How often are you taking these medications?', type: 'text', condition: (a) => a['meds'] === 'other' },
-      { id: 'severity_post_meds', text: 'Rate your nausea after taking medication:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]}
+      { id: 'severity_post_meds', text: 'Rate your nausea after taking medication:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}], condition: (a) => a['meds'] !== 'none' }
     ],
     evaluateScreening: (answers) => {
        const intakeBad = answers['intake'] === 'none' || answers['intake'] === 'barely' || answers['intake'] === 'difficulty';
@@ -412,16 +412,15 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
        return { action: 'continue' };
     },
     followUpQuestions: [
-        { id: 'other_symp', text: 'Checking for other symptoms:', type: 'multiselect', options: [
-            {label: 'Vomiting', value: 'vomit'}, {label: 'Abdominal Pain', value: 'pain'}, {label: 'Cramping', value: 'cramp'},
-            ...DEHYDRATION_SIGNS_OPTIONS
-        ]},
+        { id: 'vomiting_check', text: 'Have you vomited?', type: 'yes_no' },
+        { id: 'abd_pain', text: 'Do you have abdominal pain or cramping?', type: 'yes_no' },
+        { id: 'dehydration_signs', text: 'Any signs of dehydration?', type: 'multiselect', options: DEHYDRATION_SIGNS_OPTIONS },
         { id: 'adl', text: 'Are you able to perform daily self care like bathing and dressing yourself?', type: 'yes_no' }
     ],
     evaluateFollowUp: (answers) => {
-        const symps = answers['other_symp'] || [];
-        if (symps.includes('vomit')) return { action: 'branch', branchToSymptomId: 'VOM-204' };
-        // Check dehydration options from the list
+        if (answers['vomiting_check'] === true) return { action: 'branch', branchToSymptomId: 'VOM-204' };
+        
+        const symps = answers['dehydration_signs'] || [];
         const dehyKeys = DEHYDRATION_SIGNS_OPTIONS.map(o => o.value).filter(v => v !== 'none');
         if (symps.some((s: string) => dehyKeys.includes(s))) return { action: 'branch', branchToSymptomId: 'DEH-201' };
         return { action: 'continue' };
@@ -435,13 +434,13 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       screeningQuestions: [
           { id: 'days', text: 'How many days have you been vomiting?', type: 'number' },
           { id: 'vom_freq', text: 'How many times have you vomited in the last 24 hours?', type: 'choice', options: [{label: '1-2 times', value: 'low'}, {label: '3-5 times', value: 'med'}, {label: '>6 times', value: 'high'}]},
-          { id: 'intake_12h', text: 'How is your oral intake over the last 12 hours?', type: 'choice', options: ORAL_INTAKE_OPTIONS },
+          { id: 'intake', text: 'How is your oral intake over the last 12 hours?', type: 'choice', options: ORAL_INTAKE_OPTIONS },
           { id: 'meds', text: 'What medications for vomiting are you taking?', type: 'choice', options: MEDS_NAUSEA },
           { id: 'med_freq', text: 'How often are you taking them?', type: 'text', condition: (a) => a['meds'] === 'other' },
-          { id: 'severity_post_med', text: 'Rate your vomiting after taking medication:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]}
+          { id: 'severity_post_med', text: 'Rate your vomiting after taking medication:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}], condition: (a) => a['meds'] !== 'none' }
       ],
       evaluateScreening: (answers) => {
-          if (answers['vom_freq'] === 'high' || answers['intake_12h'] === 'none' || answers['severity_post_med'] === 'sev') {
+          if (answers['vom_freq'] === 'high' || answers['intake'] === 'none' || answers['severity_post_med'] === 'sev') {
               return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: '>6 episodes in 24 hrs OR No intake 12h OR Severe.' };
           }
           if (answers['severity_post_med'] === 'mod') { 
@@ -471,21 +470,21 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
           { id: 'stool_type', text: 'Are you experiencing any of these?', type: 'multiselect', options: [
               {label: 'My stool is black', value: 'black'}, {label: 'My stool has blood', value: 'blood'}, {label: 'My stool has mucus', value: 'mucus'}, {label: 'None of the above', value: 'none'}
           ]},
-          { id: 'pain', text: 'Are you having any abdominal pain or cramping?', type: 'yes_no' },
-          { id: 'pain_sev', text: 'Rate your abdominal pain:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}], condition: (a) => a['pain'] === true },
+          { id: 'abd_pain', text: 'Are you having any abdominal pain or cramping?', type: 'yes_no' },
+          { id: 'abd_pain_sev', text: 'Rate your abdominal pain:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}], condition: (a) => a['abd_pain'] === true },
           { id: 'meds', text: 'What medications for diarrhea are you taking?', type: 'choice', options: MEDS_DIARRHEA },
           { id: 'med_freq', text: 'How often are you taking them?', type: 'text', condition: (a) => a['meds'] === 'other' },
-          { id: 'severity_post_med', text: 'Rate your diarrhea after medication:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]},
-          { id: 'dehydration_scr', text: 'Any signs of dehydration?', type: 'multiselect', options: DEHYDRATION_SIGNS_OPTIONS },
+          { id: 'severity_post_med', text: 'Rate your diarrhea after medication:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}], condition: (a) => a['meds'] !== 'none' },
+          { id: 'dehydration_signs', text: 'Any signs of dehydration?', type: 'multiselect', options: DEHYDRATION_SIGNS_OPTIONS },
           { id: 'intake', text: 'Able to eat/drink normally?', type: 'choice', options: ORAL_INTAKE_OPTIONS }
       ],
       evaluateScreening: (answers) => {
           const stools = parseFloat(answers['stools']);
           const types = answers['stool_type'] || [];
-          const dehy = answers['dehydration_scr'] || [];
+          const dehy = answers['dehydration_signs'] || [];
           
           if (stools > 5) return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: '>5 loose stools/day reported.' };
-          if (answers['pain_sev'] === 'mod' || answers['pain_sev'] === 'sev') return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Moderate/Severe abdominal pain reported.' };
+          if (answers['abd_pain_sev'] === 'mod' || answers['abd_pain_sev'] === 'sev') return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Moderate/Severe abdominal pain reported.' };
           if (types.includes('black') || types.includes('blood') || types.includes('mucus')) return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Bloody/Black/Mucus Stool reported.' };
           if ((dehy.length > 0 && !dehy.includes('none')) || answers['intake'] === 'none') return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Dehydration signs or No Intake.' };
           if (answers['severity_post_med'] === 'sev') return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Severe Diarrhea despite meds.' };
@@ -501,7 +500,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
           { id: 'adl', text: 'Are you able to do daily activities such as household work, eating and moving around?', type: 'yes_no' }
       ],
       evaluateFollowUp: (answers) => {
-          const dehy = answers['dehydration_scr'] || [];
+          const dehy = answers['dehydration_signs'] || [];
           if (dehy.length > 0 && !dehy.includes('none')) return { action: 'branch', branchToSymptomId: 'DEH-201' };
           return { action: 'continue' };
       }
@@ -532,13 +531,13 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       },
       followUpQuestions: [
           { id: 'abd_pain', text: 'Are you having any abdominal pain?', type: 'yes_no' },
-          { id: 'pain_sev', text: 'Rate abdominal pain:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}], condition: (a) => a['abd_pain'] === true },
+          { id: 'abd_pain_sev', text: 'Rate abdominal pain:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}], condition: (a) => a['abd_pain'] === true },
           { id: 'meds', text: 'What stool softeners or medications are you taking?', type: 'text' },
-          { id: 'dehydration', text: 'Are you having any signs of dehydration?', type: 'multiselect', options: DEHYDRATION_SIGNS_OPTIONS }
+          { id: 'dehydration_signs', text: 'Are you having any signs of dehydration?', type: 'multiselect', options: DEHYDRATION_SIGNS_OPTIONS }
       ],
       evaluateFollowUp: (answers) => {
-          if (answers['pain_sev'] === 'mod' || answers['pain_sev'] === 'sev') return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Constipation with Mod/Severe Pain.' };
-          const dehy = answers['dehydration'] || [];
+          if (answers['abd_pain_sev'] === 'mod' || answers['abd_pain_sev'] === 'sev') return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Constipation with Mod/Severe Pain.' };
+          const dehy = answers['dehydration_signs'] || [];
           if (dehy.length > 0 && !dehy.includes('none')) return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Constipation with Dehydration.' };
           return { action: 'continue' };
       }
@@ -592,12 +591,13 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       },
       followUpQuestions: [
           { id: 'swallow_pain', text: 'Are you having any pain when you swallow?', type: 'yes_no' },
-          { id: 'dehydration', text: 'Any signs of dehydration?', type: 'multiselect', options: DEHYDRATION_SIGNS_OPTIONS },
-          { id: 'fever', text: 'Do you have a fever?', type: 'yes_no' }
+          { id: 'dehydration_signs', text: 'Any signs of dehydration?', type: 'multiselect', options: DEHYDRATION_SIGNS_OPTIONS },
+          { id: 'temp', text: 'What is your temperature? (Number)', type: 'number' }
       ],
       evaluateFollowUp: (answers) => {
-          if (answers['fever'] === true) return { action: 'branch', branchToSymptomId: 'FEV-202' };
-          const dehy = answers['dehydration'] || [];
+          const t = parseFloat(answers['temp']);
+          if (!isNaN(t) && t > 100.3) return { action: 'branch', branchToSymptomId: 'FEV-202' };
+          const dehy = answers['dehydration_signs'] || [];
           if (dehy.length > 0 && !dehy.includes('none')) return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Dehydration signs present.' };
           return { action: 'continue' };
       }
@@ -619,10 +619,10 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       },
       followUpQuestions: [
           { id: 'swallow_pain', text: 'Is it painful to swallow?', type: 'yes_no' },
-          { id: 'dehydration', text: 'Any signs of dehydration?', type: 'multiselect', options: DEHYDRATION_SIGNS_OPTIONS }
+          { id: 'dehydration_signs', text: 'Any signs of dehydration?', type: 'multiselect', options: DEHYDRATION_SIGNS_OPTIONS }
       ],
       evaluateFollowUp: (answers) => {
-          const dehy = answers['dehydration'] || [];
+          const dehy = answers['dehydration_signs'] || [];
           if (dehy.length > 0 && !dehy.includes('none')) return { action: 'branch', branchToSymptomId: 'DEH-201' };
           return { action: 'continue' };
       }
@@ -647,14 +647,14 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       },
       followUpQuestions: [
           { id: 'smell', text: 'Does your urine smell funny?', type: 'yes_no' },
-          { id: 'intake', text: 'Are you drinking fluids normally?', type: 'yes_no' },
+          { id: 'fluid_intake_normal', text: 'Are you drinking fluids normally?', type: 'yes_no' },
           { id: 'diabetic', text: 'Are you diabetic?', type: 'yes_no' },
           { id: 'sugar', text: 'If diabetic, what is your blood sugar?', type: 'number', condition: (a) => a['diabetic'] === true }
       ],
       evaluateFollowUp: (answers) => {
           const sugar = parseFloat(answers['sugar']);
           if (!isNaN(sugar) && (sugar > 250 || sugar < 60)) return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Diabetic Blood Sugar >250 or <60.' };
-          if (answers['intake'] === false) return { action: 'branch', branchToSymptomId: 'DEH-201' };
+          if (answers['fluid_intake_normal'] === false) return { action: 'branch', branchToSymptomId: 'DEH-201' };
           return { action: 'continue' };
       }
   },
@@ -714,7 +714,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
           ]},
           { id: 'severity', text: 'Rate your pain', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]},
           { id: 'interfere', text: 'Does it interfere with daily activities?', type: 'yes_no' },
-          { id: 'fever', text: 'Fever over 100.3F?', type: 'yes_no' }
+          { id: 'temp', text: 'What is your temperature? (Number)', type: 'number' }
       ],
       evaluateScreening: (answers) => {
           const loc = answers['loc'] || [];
@@ -728,7 +728,10 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
           if (loc.includes('mouth')) return { action: 'branch', branchToSymptomId: 'MSO-208' };
           if (loc.includes('nerve')) return { action: 'branch', branchToSymptomId: 'NEU-216' };
           
-          if (answers['severity'] === 'sev' || answers['severity'] === 'mod' || answers['fever'] === true) {
+          const t = parseFloat(answers['temp']);
+          const fever = !isNaN(t) && t > 100.3;
+          
+          if (answers['severity'] === 'sev' || answers['severity'] === 'mod' || fever) {
               return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Pain Severity/Fever Met.' };
           }
           return { action: 'continue' };

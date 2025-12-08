@@ -154,7 +154,12 @@ const useSymptomChecker = () => {
   const [currentSymptomMsgId, setCurrentSymptomMsgId] = useState<string | null>(null);
   const [stage, setStage] = useState<'selection' | 'screening' | 'followup' | 'complete'>('selection');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  
+  // Local answers for current module
   const [answers, setAnswers] = useState<Record<string, any>>({});
+  // Global answers to persist shared data across modules
+  const [globalAnswers, setGlobalAnswers] = useState<Record<string, any>>({});
+  
   const [visitedSymptoms, setVisitedSymptoms] = useState<string[]>([]);
   const [symptomQueue, setSymptomQueue] = useState<string[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -194,6 +199,23 @@ const useSymptomChecker = () => {
       }
   };
 
+  // Helper to find the next unanswered, valid question
+  const findNextUnansweredQuestion = (list: Question[], startIndex: number, currentAnswers: Record<string, any>): number => {
+      let idx = startIndex;
+      while(idx < list.length) {
+          const q = list[idx];
+          const hasAnswer = currentAnswers.hasOwnProperty(q.id);
+          const conditionMet = !q.condition || q.condition(currentAnswers);
+          
+          // If condition is met AND we don't have an answer yet, this is the one
+          if (conditionMet && !hasAnswer) {
+              return idx;
+          }
+          idx++;
+      }
+      return -1; // No questions left to ask
+  };
+
   const startSymptomLogic = (symptomId: string) => {
     if (visitedSymptoms.includes(symptomId)) {
         addMessage(`(System Note: Symptom '${SYMPTOMS[symptomId].name}' already checked, skipping to prevent loop)`, 'bot', false, true);
@@ -204,37 +226,35 @@ const useSymptomChecker = () => {
     const symptom = SYMPTOMS[symptomId];
     setCurrentSymptomId(symptomId);
     setStage('screening');
-    setCurrentQuestionIndex(0);
-    setAnswers({}); 
+    
+    // Initialize answers with global knowledge
+    const initialAnswers = { ...globalAnswers };
+    setAnswers(initialAnswers);
+    
     setVisitedSymptoms(prev => [...prev, symptomId]);
     setSymptomResults(prev => ({ ...prev, [symptomId]: 'none' })); 
     
     const msgId = addMessage(`Checking: ${symptom.name}`, 'bot', false, true, symptomId, 'checking');
     setCurrentSymptomMsgId(msgId);
     
-    setIsTyping(true);
-    setTimeout(() => {
-      setIsTyping(false);
-      askQuestion(symptom.screeningQuestions[0]);
-    }, 600);
+    // Determine start index by skipping already answered questions
+    const startIdx = findNextUnansweredQuestion(symptom.screeningQuestions, 0, initialAnswers);
+
+    if (startIdx !== -1) {
+        setCurrentQuestionIndex(startIdx);
+        setIsTyping(true);
+        setTimeout(() => {
+            setIsTyping(false);
+            askQuestion(symptom.screeningQuestions[startIdx]);
+        }, 600);
+    } else {
+        // All screening questions answered globally, run evaluation immediately
+        setTimeout(() => runScreeningEvaluation(initialAnswers), 100);
+    }
   };
 
   const askQuestion = (q: Question) => {
     addMessage(q.text, 'bot');
-  };
-
-  // Helper to find next valid question based on conditions
-  const getNextValidQuestionIndex = (list: Question[], currentIndex: number, currentAnswers: Record<string, any>): number => {
-    let nextIdx = currentIndex + 1;
-    while(nextIdx < list.length) {
-       const q = list[nextIdx];
-       // If no condition, or condition returns true, it's valid
-       if (!q.condition || q.condition(currentAnswers)) {
-          return nextIdx;
-       }
-       nextIdx++;
-    }
-    return -1; // No more questions
   };
 
   const handleAnswer = (answer: any) => {
@@ -247,6 +267,9 @@ const useSymptomChecker = () => {
     
     const newAnswers = { ...answers, [currentQ.id]: answer };
     setAnswers(newAnswers);
+    
+    // Update global answers persistence
+    setGlobalAnswers(prev => ({ ...prev, [currentQ.id]: answer }));
 
     let displayAnswer = answer;
     if (currentQ.type === 'yes_no') displayAnswer = answer ? 'Yes' : 'No';
@@ -257,19 +280,15 @@ const useSymptomChecker = () => {
     if (stage === 'screening') {
         const result = symptom.evaluateScreening(newAnswers);
         
-        // --- LOGIC UPDATE: Ask All Questions ---
-        // Only Stop immediately if 911 or explicit Stop action
         if (result.action === 'stop' || result.triageLevel === 'call_911') {
             if (result.triageLevel) updateTriage(result.triageLevel, result.triageMessage);
             if (result.action === 'stop' && result.triageLevel === 'none' && result.triageMessage) {
                  addMessage(result.triageMessage, 'bot');
             }
-            // IF Action Stop is hit, we stop the symptom.
             completeSingleSymptom();
             return;
         }
         
-        // For alerts (notify_care_team), we update state but continue asking questions (unless protocol specifically stopped above)
         if (result.triageLevel && isHigherSeverity(highestSeverity, result.triageLevel)) {
              updateTriage(result.triageLevel, result.triageMessage);
         }
@@ -279,8 +298,8 @@ const useSymptomChecker = () => {
 
     setTimeout(() => {
       setIsTyping(false);
-      // Determine next question index using Logic Engine
-      const nextIdx = getNextValidQuestionIndex(currentQList, currentQuestionIndex, newAnswers);
+      // Determine next question index using Logic Engine and Global Skip
+      const nextIdx = findNextUnansweredQuestion(currentQList, currentQuestionIndex + 1, newAnswers);
       
       if (nextIdx !== -1) {
         setCurrentQuestionIndex(nextIdx);
@@ -306,13 +325,6 @@ const useSymptomChecker = () => {
         return;
     }
     
-    // Stop if Alert is met during Screening Phase
-    // NOTE: Master v3.0 logic often requires checking followup even if alert met, 
-    // but standard flow is usually: if Alert Met in Screening -> Stop.
-    // We will follow the evaluateScreening result. If it returned 'continue', we continue.
-    // If we are here, nextIdx was -1 (no more screening Qs).
-    // So if result.action was continue, we move to followup.
-
     if (result.action === 'branch' && result.branchToSymptomId) {
         if (!visitedSymptoms.includes(result.branchToSymptomId)) {
              addMessage(`Based on your answers, checking ${SYMPTOMS[result.branchToSymptomId].name} next.`, 'bot', false, true);
@@ -324,16 +336,17 @@ const useSymptomChecker = () => {
 
     if (symptom.followUpQuestions && symptom.followUpQuestions.length > 0) {
         setStage('followup');
-        setCurrentQuestionIndex(0);
         
-        // Ensure first question of followup is valid
-        const firstIdx = getNextValidQuestionIndex(symptom.followUpQuestions, -1, finalAnswers);
+        // Find first unanswered followup
+        const firstIdx = findNextUnansweredQuestion(symptom.followUpQuestions, 0, finalAnswers);
+        
         if (firstIdx !== -1) {
              addMessage("Checking for additional symptoms...", 'bot');
              setCurrentQuestionIndex(firstIdx);
              setTimeout(() => askQuestion(symptom.followUpQuestions![firstIdx]), 500);
         } else {
-             completeSingleSymptom();
+             // All followup questions already answered globally
+             runFollowUpEvaluation(finalAnswers);
         }
     } else {
         completeSingleSymptom();
@@ -405,12 +418,13 @@ const useSymptomChecker = () => {
     setCurrentSymptomMsgId(null);
     setStage('selection');
     setAnswers({});
+    setGlobalAnswers({});
     setHighestSeverity('none');
     setTriageReasons([]);
     setVisitedSymptoms([]);
     setSymptomResults({});
     setSymptomQueue([]);
-    setHistory([{ id: Date.now().toString(), sender: 'bot', content: 'Hello. I am Ruby, your compassionate oncology assistant. Please select a symptom below so I can help you.' }]);
+    setHistory([{ id: Date.now().toString(), sender: 'bot', content: 'Hello. I am Ruby, your compassionate oncology assistant. Please select a symptom below so I can help you. If this is a medical emergency, call 911 immediately.' }]);
   };
 
   const continueSession = () => {

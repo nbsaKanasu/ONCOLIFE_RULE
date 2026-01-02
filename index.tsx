@@ -292,17 +292,23 @@ const ChatBubble: React.FC<{ message: Message }> = ({ message }) => {
 
   return (
     <div 
-      className={`flex w-full ${isBot ? 'justify-start' : 'justify-end'} mb-3 animate-fade-in`}
+      className={`flex w-full ${isBot ? 'justify-start' : 'justify-end'} mb-4 animate-fade-in`}
       role="log"
-      aria-label={isBot ? 'Assistant message' : 'Your response'}
+      aria-label={isBot ? 'Ruby says' : 'Your response'}
     >
-      <div className={`max-w-[85%] p-3 rounded-lg text-sm leading-relaxed ${
+      {isBot && (
+        <div className="ruby-avatar mr-3 shrink-0" aria-hidden="true">R</div>
+      )}
+      <div className={`max-w-[80%] leading-relaxed ${
         message.isAlert 
-          ? 'bg-red-50 border border-red-200 text-red-900' 
+          ? 'bg-red-50 border border-red-200 text-red-900 p-4 rounded-2xl' 
           : isBot 
-            ? 'bg-white text-slate-700 border border-slate-200' 
-            : 'bg-slate-700 text-white'
+            ? 'ruby-bubble text-white text-sm' 
+            : 'bg-stone-100 text-stone-800 p-4 rounded-2xl rounded-tr-sm text-sm'
       }`}>
+        {isBot && !message.isAlert && (
+          <span className="text-rose-200 text-xs font-medium block mb-1">Ruby</span>
+        )}
         {message.isAlert && <span className="sr-only">Alert: </span>}
         {message.content}
       </div>
@@ -311,11 +317,12 @@ const ChatBubble: React.FC<{ message: Message }> = ({ message }) => {
 };
 
 const TypingIndicator = () => (
-  <div className="flex w-full justify-start mb-3">
-    <div className="bg-white border border-slate-200 p-3 rounded-lg flex space-x-1.5 items-center h-10">
-      <div className="w-1.5 h-1.5 bg-slate-400 rounded-full typing-dot"></div>
-      <div className="w-1.5 h-1.5 bg-slate-400 rounded-full typing-dot"></div>
-      <div className="w-1.5 h-1.5 bg-slate-400 rounded-full typing-dot"></div>
+  <div className="flex w-full justify-start mb-4">
+    <div className="ruby-avatar mr-3 shrink-0" aria-hidden="true">R</div>
+    <div className="ruby-bubble flex space-x-1.5 items-center h-12 px-5">
+      <div className="w-2 h-2 bg-white/60 rounded-full typing-dot"></div>
+      <div className="w-2 h-2 bg-white/60 rounded-full typing-dot"></div>
+      <div className="w-2 h-2 bg-white/60 rounded-full typing-dot"></div>
     </div>
   </div>
 );
@@ -336,11 +343,11 @@ const SymptomCard: React.FC<{
         other: "hover:border-slate-400"
     };
     
-    const selectedStyle = isSelected ? "ring-2 ring-slate-500 bg-slate-50" : "";
+    const selectedStyle = isSelected ? "ring-2 ring-rose-500 bg-rose-50" : "";
     
     const iconBg = variant === 'emergency' 
       ? 'bg-red-50 text-red-600' 
-      : 'bg-slate-100 text-slate-600';
+      : 'bg-rose-50 text-rose-600';
 
     // Result badge styling
     const getResultBadge = (res: ActionLevel) => {
@@ -380,7 +387,7 @@ const SymptomCard: React.FC<{
             {badge}
             {isMultiSelectMode && (
                  <div 
-                   className={`absolute top-3 right-3 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-slate-700 border-slate-700' : 'border-slate-300 bg-white'}`}
+                   className={`absolute top-3 right-3 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-rose-600 border-rose-600' : 'border-stone-300 bg-white'}`}
                    aria-hidden="true"
                  >
                      {isSelected && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
@@ -490,7 +497,7 @@ const FontSizeSelector: React.FC<{ fontScale: FontScale; setFontScale: (scale: F
 
 const useSymptomChecker = () => {
   const [history, setHistory] = useState<Message[]>([
-    { id: 'welcome', sender: 'bot', content: "Welcome to OncoLife Symptom Assessment. I will guide you through a clinical evaluation of your symptoms. Your responses help your care team understand your condition. If you are experiencing a medical emergency, please call 911 immediately." }
+    { id: 'welcome', sender: 'bot', content: "Hi, I'm Ruby! 💎 I'm here to help check on how you're feeling today. Let's go through your symptoms together — I'll ask a few questions to make sure your care team has all the information they need. If this is an emergency, please call 911 right away." }
   ]);
   const [currentSymptomId, setCurrentSymptomId] = useState<string | null>(null);
   const [currentSymptomMsgId, setCurrentSymptomMsgId] = useState<string | null>(null);
@@ -688,7 +695,7 @@ const useSymptomChecker = () => {
     if (result.action === 'branch' && result.branchToSymptomId) {
         if (!visitedSymptoms.includes(result.branchToSymptomId)) {
              const branchName = SYMPTOMS[result.branchToSymptomId].name;
-             addMessage(`Based on your responses, I need to assess ${branchName.toLowerCase()} to complete your evaluation.`, 'bot');
+             addMessage(`Based on what you've shared, Ruby needs to ask about ${branchName.toLowerCase()} too — this helps me get a complete picture. 💎`, 'bot');
              setSymptomQueue(prev => [result.branchToSymptomId!, ...prev.filter(id => id !== result.branchToSymptomId!)]);
         }
         completeSingleSymptom();
@@ -702,7 +709,7 @@ const useSymptomChecker = () => {
         const firstIdx = findNextUnansweredQuestion(symptom.followUpQuestions, 0, finalAnswers);
         
         if (firstIdx !== -1) {
-             addMessage("Proceeding to follow-up assessment questions.", 'bot');
+             addMessage("You're doing great! Just a few more questions from Ruby to make sure we cover everything. 💎", 'bot');
              setCurrentQuestionIndex(firstIdx);
              setTimeout(() => askQuestion(symptom.followUpQuestions![firstIdx]), 500);
         } else {
@@ -733,7 +740,7 @@ const useSymptomChecker = () => {
           if (result.action === 'branch' && result.branchToSymptomId) {
                if (!visitedSymptoms.includes(result.branchToSymptomId)) {
                     const branchName = SYMPTOMS[result.branchToSymptomId].name;
-                    addMessage(`Your responses indicate additional assessment needed for ${branchName.toLowerCase()}.`, 'bot');
+                    addMessage(`Ruby noticed something — let me also check on ${branchName.toLowerCase()} to be thorough. 💎`, 'bot');
                     setSymptomQueue(prev => [result.branchToSymptomId!, ...prev.filter(id => id !== result.branchToSymptomId!)]);
                }
           }
@@ -993,17 +1000,15 @@ function App() {
       
       {/* Sticky Header */}
       <header 
-        className="sticky top-0 z-40 w-full bg-white border-b border-slate-200 shrink-0"
+        className="sticky top-0 z-40 w-full bg-white border-b border-stone-200 shrink-0"
         role="banner"
       >
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-slate-700 rounded-lg flex items-center justify-center text-white" aria-hidden="true">
-                  <MedicalIcons.Heart />
-                </div>
+                <div className="ruby-avatar w-9 h-9 text-base" aria-hidden="true">R</div>
                 <div>
-                    <h1 className="font-semibold text-slate-800 text-base leading-tight">OncoLife</h1>
-                    <p className="text-slate-500 text-[10px] font-medium">Clinical Assessment System</p>
+                    <h1 className="font-semibold text-stone-800 text-base leading-tight">OncoLife</h1>
+                    <p className="text-rose-600 text-[10px] font-semibold">Ruby — Your Care Assistant</p>
                 </div>
             </div>
             <div className="flex items-center space-x-2">
@@ -1075,24 +1080,29 @@ function App() {
         {stage === 'selection' ? (
             /* --- DASHBOARD VIEW --- */
             <div className="animate-fade-in pb-20" ref={mainContentRef}>
-                {/* Professional Header Section */}
-                <div className="bg-white border-b border-slate-200 px-4 pt-8 pb-6">
+                {/* Ruby Hero Section */}
+                <div className="ruby-header px-4 pt-10 pb-8 text-center">
                     <div className="max-w-3xl mx-auto">
-                        {/* Institution Branding */}
-                        <div className="text-center mb-6">
-                          {getLastAssessmentDate() && (
-                            <p className="text-slate-500 text-xs mb-2">
-                              Last assessment: {getLastAssessmentDate()}
-                            </p>
-                          )}
-                          <h2 className="text-2xl md:text-3xl font-semibold text-slate-800 mb-2">
-                            Symptom Assessment
-                          </h2>
-                          <p className="text-slate-600 text-sm max-w-md mx-auto">
-                            Select a symptom to begin your evaluation. Your responses help your care team understand your condition.
-                          </p>
-                        </div>
+                        {/* Ruby Avatar */}
+                        <div className="ruby-avatar w-16 h-16 mx-auto mb-4 text-2xl shadow-lg">R</div>
                         
+                        <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
+                          Hi, I'm Ruby! 💎
+                        </h2>
+                        <p className="text-rose-100 text-sm max-w-md mx-auto mb-2">
+                          Let me help check on how you're feeling today.
+                        </p>
+                        {getLastAssessmentDate() && (
+                          <p className="text-rose-200/70 text-xs">
+                            Welcome back! Last check: {getLastAssessmentDate()}
+                          </p>
+                        )}
+                    </div>
+                </div>
+                
+                {/* Search & Filters */}
+                <div className="bg-white border-b border-stone-200 px-4 py-5">
+                    <div className="max-w-3xl mx-auto">
                         {/* Mobile Font Size Selector */}
                         <div className="sm:hidden flex justify-center mb-4">
                           <FontSizeSelector fontScale={fontScale} setFontScale={setFontScale} />
@@ -1101,13 +1111,13 @@ function App() {
                         {/* Search */}
                         <div className="relative max-w-md mx-auto mb-4">
                             <label htmlFor="symptom-search" className="sr-only">Search symptoms</label>
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none" aria-hidden="true">
-                                <svg className="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none" aria-hidden="true">
+                                <svg className="h-5 w-5 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                             </div>
                             <input 
                                 id="symptom-search"
                                 type="search" 
-                                className="block w-full pl-10 pr-4 py-2.5 rounded-lg text-slate-900 placeholder-slate-400 bg-slate-50 border border-slate-200 focus:ring-2 focus:ring-slate-500 focus:border-slate-500 focus:outline-none text-sm transition-all"
+                                className="block w-full pl-12 pr-4 py-3 rounded-xl text-stone-900 placeholder-stone-400 bg-stone-50 border border-stone-200 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 focus:outline-none text-sm transition-all"
                                 placeholder="Search symptoms..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -1119,14 +1129,14 @@ function App() {
                             </span>
                         </div>
                         
-                        {/* Filter Pills - Professional style */}
+                        {/* Filter Pills */}
                         <div className="flex flex-wrap justify-center gap-2 mb-4">
                           {[
-                            { id: 'all', label: 'All Categories' },
+                            { id: 'all', label: 'All' },
                             { id: 'digestive', label: 'Digestive' },
                             { id: 'pain', label: 'Pain' },
-                            { id: 'respiratory', label: 'Respiratory' },
-                            { id: 'neurological', label: 'Neurological' },
+                            { id: 'respiratory', label: 'Breathing' },
+                            { id: 'neurological', label: 'Neuro' },
                             { id: 'skin', label: 'Skin' },
                             { id: 'general', label: 'General' },
                           ].map(filter => (
@@ -1142,13 +1152,13 @@ function App() {
                         
                         {/* Mode Toggle */}
                         <div 
-                          className="flex justify-center items-center space-x-2 bg-slate-100 inline-flex p-1 rounded-lg mx-auto"
+                          className="flex justify-center items-center space-x-2 bg-stone-100 inline-flex p-1 rounded-full mx-auto"
                           role="radiogroup"
                           aria-label="Selection mode"
                         >
                              <button 
                                 onClick={() => { setIsMultiSelectMode(false); setSelectedSymptoms([]); }}
-                                className={`px-4 py-2 rounded-md text-xs font-medium transition-all ${!isMultiSelectMode ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}
+                                className={`px-4 py-2 rounded-full text-xs font-medium transition-all ${!isMultiSelectMode ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-600 hover:text-stone-800'}`}
                                 role="radio"
                                 aria-checked={!isMultiSelectMode}
                                 aria-label="Single symptom mode"
@@ -1157,7 +1167,7 @@ function App() {
                              </button>
                              <button 
                                 onClick={() => setIsMultiSelectMode(true)}
-                                className={`px-4 py-2 rounded-md text-xs font-medium transition-all ${isMultiSelectMode ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}
+                                className={`px-4 py-2 rounded-full text-xs font-medium transition-all ${isMultiSelectMode ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-600 hover:text-stone-800'}`}
                                 role="radio"
                                 aria-checked={isMultiSelectMode}
                                 aria-label="Multiple symptom mode"
@@ -1305,10 +1315,10 @@ function App() {
                     <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 animate-fade-in w-full max-w-sm px-4" role="region" aria-live="polite">
                         <button 
                             onClick={handleStartMultiSession}
-                            className="btn-primary w-full py-3 rounded-lg shadow-lg flex items-center justify-center"
+                            className="btn-ruby w-full flex items-center justify-center"
                             aria-label={`Start assessment for ${selectedSymptoms.length} selected symptoms`}
                         >
-                            <span>Start Assessment ({selectedSymptoms.length})</span>
+                            <span>Ruby, check {selectedSymptoms.length} symptom{selectedSymptoms.length > 1 ? 's' : ''}</span>
                             <span className="ml-2"><MedicalIcons.ArrowRight /></span>
                         </button>
                     </div>
@@ -1482,9 +1492,9 @@ function App() {
                         <div className="grid gap-3 mt-6">
                             <button 
                                 onClick={continueSession}
-                                className="btn-primary w-full py-3 rounded-lg flex items-center justify-center"
+                                className="btn-ruby w-full flex items-center justify-center"
                             >
-                                <span>Assess Another Symptom</span>
+                                <span>Ask Ruby About Another Symptom</span>
                                 <span className="ml-2"><MedicalIcons.Plus /></span>
                             </button>
 
@@ -1556,15 +1566,14 @@ function App() {
                 <div className="grid grid-cols-5 gap-3" role="group" aria-label="Yes or No answer options">
                     <button 
                       onClick={() => handleAnswer(false)} 
-                      className="col-span-2 p-3 rounded-lg border border-slate-200 font-medium text-slate-600 hover:border-slate-300 hover:bg-slate-50 active:scale-98 transition-all"
+                      className="col-span-2 p-3 rounded-xl border border-stone-200 font-medium text-stone-600 hover:border-stone-300 hover:bg-stone-50 active:scale-98 transition-all"
                       aria-label="Answer No"
                     >
                       No
                     </button>
-                    {/* Yes button - larger, more prominent (action-triggering) */}
                     <button 
                       onClick={() => handleAnswer(true)} 
-                      className="col-span-3 p-3.5 rounded-lg bg-slate-700 text-white font-semibold shadow-sm hover:bg-slate-800 active:scale-98 transition-all"
+                      className="col-span-3 p-3.5 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 text-white font-semibold shadow-md hover:shadow-lg active:scale-98 transition-all"
                       aria-label="Answer Yes"
                     >
                       Yes
@@ -1578,7 +1587,7 @@ function App() {
                         <button 
                         key={opt.value.toString()} 
                         onClick={() => handleAnswer(opt.value)}
-                        className="p-4 rounded-2xl border border-slate-200 text-left font-semibold text-slate-700 hover:bg-teal-50 hover:border-teal-200 hover:text-teal-800 transition-all shadow-sm active:scale-98 whitespace-normal"
+                        className="p-4 rounded-xl border border-stone-200 text-left font-medium text-stone-700 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-800 transition-all active:scale-98 whitespace-normal"
                         role="radio"
                         aria-checked="false"
                         aria-label={`Select ${opt.label}`}

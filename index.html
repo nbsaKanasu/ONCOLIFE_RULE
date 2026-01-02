@@ -3,36 +3,50 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OncoLife Symptom Assessment</title>
+    <title>OncoLife - Ruby Symptom Assistant</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Professional medical typography -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Warm, friendly typography -->
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-      /* === Professional Medical Color System === */
+      /* === Ruby Warm Color Palette === */
       :root {
         --font-scale: 1;
         --base-font-size: 16px;
         
-        /* Slate Blue Professional Palette */
-        --primary: #475569;
-        --primary-dark: #334155;
-        --primary-light: #64748b;
-        --accent: #3b82f6;
-        --accent-hover: #2563eb;
+        /* Ruby Warm Palette - Professional yet Inviting */
+        --ruby: #be123c;
+        --ruby-dark: #9f1239;
+        --ruby-light: #e11d48;
+        --ruby-soft: #fda4af;
+        
+        /* Warm Neutrals */
+        --warm-50: #fafaf9;
+        --warm-100: #f5f5f4;
+        --warm-200: #e7e5e4;
+        --warm-300: #d6d3d1;
+        --warm-600: #57534e;
+        --warm-700: #44403c;
+        --warm-800: #292524;
+        --warm-900: #1c1917;
+        
+        /* Accent - Warm Teal for balance */
+        --accent: #0d9488;
+        --accent-light: #14b8a6;
         
         /* Backgrounds */
-        --bg-primary: #f8fafc;
+        --bg-primary: #fafaf9;
         --bg-secondary: #ffffff;
-        --bg-tertiary: #f1f5f9;
+        --bg-tertiary: #f5f5f4;
+        --bg-ruby: #fff1f2;
         
         /* Text */
-        --text-primary: #1e293b;
-        --text-secondary: #475569;
-        --text-muted: #94a3b8;
+        --text-primary: #1c1917;
+        --text-secondary: #57534e;
+        --text-muted: #a8a29e;
         
         /* Borders */
-        --border-color: #e2e8f0;
-        --border-focus: #3b82f6;
+        --border-color: #e7e5e4;
+        --border-ruby: #fecdd3;
         
         /* Status Colors */
         --status-safe: #059669;
@@ -43,21 +57,27 @@
       
       /* === Dark Mode === */
       html.dark {
-        --primary: #94a3b8;
-        --primary-dark: #cbd5e1;
-        --primary-light: #64748b;
-        --accent: #60a5fa;
-        --accent-hover: #3b82f6;
+        --ruby: #fb7185;
+        --ruby-dark: #f43f5e;
+        --ruby-light: #fda4af;
         
-        --bg-primary: #0f172a;
-        --bg-secondary: #1e293b;
-        --bg-tertiary: #334155;
+        --warm-50: #1c1917;
+        --warm-100: #292524;
+        --warm-200: #44403c;
+        --warm-600: #a8a29e;
+        --warm-700: #d6d3d1;
         
-        --text-primary: #f1f5f9;
-        --text-secondary: #cbd5e1;
-        --text-muted: #64748b;
+        --bg-primary: #1c1917;
+        --bg-secondary: #292524;
+        --bg-tertiary: #44403c;
+        --bg-ruby: #4c0519;
         
-        --border-color: #334155;
+        --text-primary: #fafaf9;
+        --text-secondary: #d6d3d1;
+        --text-muted: #78716c;
+        
+        --border-color: #44403c;
+        --border-ruby: #881337;
       }
       
       html {
@@ -70,7 +90,7 @@
       html.font-scale-xlarge { --font-scale: 1.25; }
       
       body { 
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
+        font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif; 
         background-color: var(--bg-primary);
         color: var(--text-primary);
         line-height: 1.6;
@@ -78,24 +98,24 @@
       
       /* Dark mode overrides */
       html.dark .bg-white { background-color: var(--bg-secondary) !important; }
-      html.dark .bg-slate-50 { background-color: var(--bg-primary) !important; }
-      html.dark .text-slate-800, html.dark .text-slate-900 { color: var(--text-primary) !important; }
-      html.dark .text-slate-600, html.dark .text-slate-500, html.dark .text-slate-400 { color: var(--text-secondary) !important; }
-      html.dark .border-slate-100, html.dark .border-slate-200 { border-color: var(--border-color) !important; }
+      html.dark .bg-stone-50 { background-color: var(--bg-primary) !important; }
+      html.dark .text-stone-800, html.dark .text-stone-900 { color: var(--text-primary) !important; }
+      html.dark .text-stone-600, html.dark .text-stone-500, html.dark .text-stone-400 { color: var(--text-secondary) !important; }
+      html.dark .border-stone-100, html.dark .border-stone-200 { border-color: var(--border-color) !important; }
       
-      /* === Focus States === */
+      /* === Focus States - Ruby accent === */
       *:focus { outline: none; }
       
       *:focus-visible {
-        outline: 2px solid var(--accent) !important;
+        outline: 2px solid var(--ruby) !important;
         outline-offset: 2px !important;
       }
       
       button:focus-visible,
       input:focus-visible {
-        outline: 2px solid var(--accent) !important;
+        outline: 2px solid var(--ruby) !important;
         outline-offset: 2px !important;
-        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15) !important;
+        box-shadow: 0 0 0 4px rgba(190, 18, 60, 0.15) !important;
       }
       
       .focus-emergency:focus-visible {
@@ -108,7 +128,7 @@
         position: absolute;
         top: -40px;
         left: 0;
-        background: var(--primary-dark);
+        background: var(--ruby-dark);
         color: white;
         padding: 8px 16px;
         z-index: 100;
@@ -137,12 +157,19 @@
         to { opacity: 1; transform: translateY(0); }
       }
       
-      .animate-fade-in { animation: fadeIn 0.2s ease-out forwards; }
+      .animate-fade-in { animation: fadeIn 0.25s ease-out forwards; }
       
       @keyframes slideUp {
         from { opacity: 0; transform: translateY(16px); }
         to { opacity: 1; transform: translateY(0); }
       }
+      
+      @keyframes pulse-soft {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+      }
+      
+      .pulse-soft { animation: pulse-soft 2s ease-in-out infinite; }
       
       /* === Screen Reader === */
       .sr-only {
@@ -157,11 +184,11 @@
         border: 0;
       }
       
-      /* === Professional Dialog === */
+      /* === Dialog === */
       .dialog-overlay {
         position: fixed;
         inset: 0;
-        background: rgba(15, 23, 42, 0.6);
+        background: rgba(28, 25, 23, 0.6);
         backdrop-filter: blur(4px);
         z-index: 100;
         display: flex;
@@ -171,11 +198,11 @@
       
       .dialog-box {
         background: white;
-        border-radius: 8px;
+        border-radius: 16px;
         padding: 24px;
         max-width: 400px;
         width: 90%;
-        box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.25);
         animation: slideUp 0.2s ease-out;
       }
       
@@ -199,29 +226,30 @@
       
       .temp-input-wrapper input { padding-right: 2.5rem !important; }
       
-      /* === Filter Pills === */
+      /* === Filter Pills - Ruby themed === */
       .filter-pill {
-        padding: 6px 14px;
-        border-radius: 6px;
+        padding: 8px 16px;
+        border-radius: 20px;
         font-size: 13px;
         font-weight: 500;
         border: 1px solid var(--border-color);
         background: var(--bg-secondary);
         color: var(--text-secondary);
-        transition: all 0.15s ease;
+        transition: all 0.2s ease;
         cursor: pointer;
         white-space: nowrap;
       }
       
       .filter-pill:hover {
-        border-color: var(--primary);
-        color: var(--primary-dark);
+        border-color: var(--ruby-soft);
+        color: var(--ruby);
+        background: var(--bg-ruby);
       }
       
       .filter-pill.active {
-        background: var(--primary-dark);
+        background: var(--ruby);
         color: white;
-        border-color: var(--primary-dark);
+        border-color: var(--ruby);
       }
       
       /* === Collapsible === */
@@ -233,37 +261,70 @@
       
       .collapsible-content.expanded { max-height: 2000px; }
       
-      /* === Medical Card === */
+      /* === Symptom Card - Warm and inviting === */
       .medical-card {
         background: var(--bg-secondary);
         border: 1px solid var(--border-color);
-        border-radius: 8px;
-        padding: 16px;
-        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        border-radius: 16px;
+        padding: 20px;
+        transition: all 0.2s ease;
       }
       
       .medical-card:hover {
-        border-color: var(--primary-light);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        border-color: var(--ruby-soft);
+        box-shadow: 0 4px 20px rgba(190, 18, 60, 0.08);
+        transform: translateY(-2px);
       }
       
       /* === Status Badges === */
       .badge-safe { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
       .badge-alert { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
       .badge-emergency { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
-      .badge-info { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+      .badge-info { background: #fff1f2; color: #9f1239; border: 1px solid #fecdd3; }
       
-      /* === Primary Button === */
-      .btn-primary {
-        background: var(--primary-dark);
+      /* === Ruby Primary Button === */
+      .btn-ruby {
+        background: linear-gradient(135deg, var(--ruby) 0%, var(--ruby-dark) 100%);
         color: white;
         font-weight: 600;
-        padding: 12px 24px;
-        border-radius: 6px;
-        transition: background 0.15s ease;
+        padding: 14px 28px;
+        border-radius: 12px;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 14px rgba(190, 18, 60, 0.25);
       }
       
-      .btn-primary:hover { background: var(--primary); }
+      .btn-ruby:hover { 
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(190, 18, 60, 0.35);
+      }
+      
+      /* === Ruby Chat Bubble === */
+      .ruby-bubble {
+        background: linear-gradient(135deg, var(--ruby) 0%, var(--ruby-dark) 100%);
+        color: white;
+        border-radius: 20px 20px 20px 4px;
+        padding: 16px 20px;
+        position: relative;
+      }
+      
+      .ruby-avatar {
+        width: 32px;
+        height: 32px;
+        background: linear-gradient(135deg, var(--ruby) 0%, var(--ruby-dark) 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 700;
+        font-size: 14px;
+        box-shadow: 0 2px 8px rgba(190, 18, 60, 0.3);
+      }
+      
+      /* === Ruby Header Gradient === */
+      .ruby-header {
+        background: linear-gradient(135deg, var(--ruby) 0%, #881337 100%);
+      }
       
       /* === Reduced Motion === */
       @media (prefers-reduced-motion: reduce) {

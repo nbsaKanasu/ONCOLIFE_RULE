@@ -5,6 +5,41 @@ import { SYMPTOMS, SymptomDef, Question, ActionLevel, isHigherSeverity, InputTyp
 // --- Types & Interfaces (UI Specific) ---
 
 type SymptomStatus = 'checking' | 'safe' | 'alert' | 'emergency';
+type FontScale = 'small' | 'normal' | 'large' | 'xlarge';
+
+// --- Accessibility: Font Size Hook ---
+const useFontScale = () => {
+  const [fontScale, setFontScale] = useState<FontScale>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('oncolife-font-scale') as FontScale) || 'normal';
+    }
+    return 'normal';
+  });
+
+  useEffect(() => {
+    const html = document.documentElement;
+    // Remove all font scale classes
+    html.classList.remove('font-scale-small', 'font-scale-normal', 'font-scale-large', 'font-scale-xlarge');
+    // Add current font scale class
+    html.classList.add(`font-scale-${fontScale}`);
+    // Persist preference
+    localStorage.setItem('oncolife-font-scale', fontScale);
+  }, [fontScale]);
+
+  return { fontScale, setFontScale };
+};
+
+// --- Accessibility: Screen Reader Announcements ---
+const ScreenReaderAnnounce: React.FC<{ message: string; assertive?: boolean }> = ({ message, assertive = false }) => (
+  <div
+    role="status"
+    aria-live={assertive ? "assertive" : "polite"}
+    aria-atomic="true"
+    className="sr-only"
+  >
+    {message}
+  </div>
+);
 
 // --- Components ---
 
@@ -21,21 +56,38 @@ interface Message {
 const ChatBubble: React.FC<{ message: Message }> = ({ message }) => {
   const isBot = message.sender === 'bot';
   
+  // Accessibility: Map status to aria-label and pattern class
+  const getStatusAccessibility = (status?: SymptomStatus) => {
+    switch(status) {
+      case 'checking': return { label: 'Status: In Progress', pattern: '', icon: '🩺', text: 'CHECKING' };
+      case 'safe': return { label: 'Status: Safe - No immediate action needed', pattern: 'status-pattern-safe', icon: '✅', text: 'SAFE' };
+      case 'alert': return { label: 'Status: Alert - Care team will be notified', pattern: 'status-pattern-alert', icon: '⚠️', text: 'ALERT' };
+      case 'emergency': return { label: 'Status: Emergency - Immediate action required', pattern: 'status-pattern-emergency', icon: '🚨', text: 'EMERGENCY' };
+      default: return { label: 'System message', pattern: '', icon: '', text: '' };
+    }
+  };
+  
   if (message.isSystem) {
+    const statusInfo = getStatusAccessibility(message.symptomStatus);
     return (
-      <div className="flex w-full justify-center mb-4 animate-fade-in px-4">
+      <div className="flex w-full justify-center mb-4 animate-fade-in px-4" role="status" aria-label={statusInfo.label}>
          <span className={`
             text-xs px-3 py-1.5 rounded-full font-bold tracking-wide flex items-center uppercase border shadow-sm
+            ${statusInfo.pattern}
             ${message.symptomStatus === 'safe' ? 'bg-green-100 border-green-200 text-green-800' : ''}
             ${message.symptomStatus === 'emergency' ? 'bg-red-100 border-red-200 text-red-800' : ''}
             ${message.symptomStatus === 'alert' ? 'bg-amber-100 border-amber-200 text-amber-800' : ''}
             ${message.symptomStatus === 'checking' ? 'bg-blue-50 border-blue-100 text-blue-800' : ''}
             ${!message.symptomStatus ? 'bg-slate-100 border-slate-200 text-slate-600' : ''}
          `}>
-            {message.symptomStatus === 'checking' && <span className="mr-2 text-base animate-pulse">🩺</span>}
-            {message.symptomStatus === 'safe' && <span className="mr-2 text-base">✅</span>}
-            {message.symptomStatus === 'alert' && <span className="mr-2 text-base">⚠️</span>}
-            {message.symptomStatus === 'emergency' && <span className="mr-2 text-base">🚨</span>}
+            {message.symptomStatus === 'checking' && <span className="mr-2 text-base animate-pulse" aria-hidden="true">🩺</span>}
+            {message.symptomStatus === 'safe' && <span className="mr-2 text-base" aria-hidden="true">✅</span>}
+            {message.symptomStatus === 'alert' && <span className="mr-2 text-base" aria-hidden="true">⚠️</span>}
+            {message.symptomStatus === 'emergency' && <span className="mr-2 text-base" aria-hidden="true">🚨</span>}
+            {/* Accessibility: Text label for colorblind users */}
+            {message.symptomStatus && statusInfo.text && (
+              <span className="mr-1.5 text-[9px] font-black opacity-70">[{statusInfo.text}]</span>
+            )}
             {message.content}
          </span>
       </div>
@@ -43,14 +95,19 @@ const ChatBubble: React.FC<{ message: Message }> = ({ message }) => {
   }
 
   return (
-    <div className={`flex w-full ${isBot ? 'justify-start' : 'justify-end'} mb-3 animate-fade-in`}>
+    <div 
+      className={`flex w-full ${isBot ? 'justify-start' : 'justify-end'} mb-3 animate-fade-in`}
+      role="log"
+      aria-label={isBot ? 'Assistant message' : 'Your response'}
+    >
       <div className={`max-w-[85%] p-3.5 rounded-2xl text-sm md:text-base shadow-sm leading-relaxed ${
         message.isAlert 
-          ? 'bg-red-50 border border-red-200 text-red-900' 
+          ? 'bg-red-50 border border-red-200 text-red-900 status-pattern-emergency' 
           : isBot 
             ? 'bg-white text-slate-800 border border-slate-100 rounded-tl-none' 
             : 'bg-teal-600 text-white rounded-tr-none shadow-md'
       }`}>
+        {message.isAlert && <span className="sr-only">Alert: </span>}
         {message.content}
       </div>
     </div>
@@ -77,7 +134,7 @@ const SymptomCard: React.FC<{
 }> = ({ symptom, onClick, variant, result, isMultiSelectMode, isSelected }) => {
     const baseClasses = "p-5 rounded-2xl border transition-all duration-300 transform flex flex-col justify-between w-full text-left group relative overflow-hidden min-h-[150px]";
     const styles = {
-        emergency: "bg-white border-slate-100 shadow-sm hover:shadow-lg hover:border-red-200",
+        emergency: "bg-white border-slate-100 shadow-sm hover:shadow-lg hover:border-red-200 focus-emergency",
         common: "bg-white border-slate-100 shadow-sm hover:shadow-lg hover:border-teal-200",
         other: "bg-white border-slate-100 shadow-sm hover:shadow-lg hover:border-indigo-200"
     };
@@ -87,36 +144,69 @@ const SymptomCard: React.FC<{
     
     const iconBg = variant === 'emergency' ? 'bg-red-50 text-red-600 group-hover:bg-red-100' : variant === 'common' ? 'bg-teal-50 text-teal-600 group-hover:bg-teal-100' : 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-100';
 
-    // Result badge
+    // Accessibility: Result badge with text labels and patterns
+    const getResultAccessibility = (res: ActionLevel) => {
+      switch(res) {
+        case 'call_911': return { text: '⚠ EMERGENCY', label: 'Emergency - Previously checked', className: 'bg-red-100 text-red-700 border-red-200 status-pattern-emergency' };
+        case 'notify_care_team': return { text: '⚡ ALERT', label: 'Alert - Care team notified', className: 'bg-amber-100 text-amber-700 border-amber-200 status-pattern-alert' };
+        case 'refer_provider': return { text: '📋 CONSULT', label: 'Consult - Discuss with provider', className: 'bg-blue-100 text-blue-700 border-blue-200' };
+        default: return { text: '✓ CHECKED', label: 'Checked - No immediate concern', className: 'bg-green-100 text-green-700 border-green-200 status-pattern-safe' };
+      }
+    };
+    
     let badge = null;
     if (result) {
-        if (result === 'call_911') badge = <span className="absolute top-3 right-3 bg-red-100 text-red-700 text-[10px] font-bold px-2 py-1 rounded-full border border-red-200">Emergency</span>;
-        else if (result === 'notify_care_team') badge = <span className="absolute top-3 right-3 bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-1 rounded-full border border-amber-200">Alert</span>;
-        else if (result === 'refer_provider') badge = <span className="absolute top-3 right-3 bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded-full border border-blue-200">Consult</span>;
-        else badge = <span className="absolute top-3 right-3 bg-green-100 text-green-700 text-[10px] font-bold px-2 py-1 rounded-full border border-green-200">Checked</span>;
+        const resultInfo = getResultAccessibility(result);
+        badge = (
+          <span 
+            className={`absolute top-3 right-3 text-[10px] font-bold px-2 py-1 rounded-full border ${resultInfo.className}`}
+            aria-label={resultInfo.label}
+          >
+            {resultInfo.text}
+          </span>
+        );
     }
+    
+    // Accessibility: Build comprehensive aria-label
+    const ariaLabel = [
+      symptom.name,
+      variant === 'emergency' ? 'Emergency symptom' : 'Standard symptom',
+      result ? getResultAccessibility(result).label : '',
+      isMultiSelectMode ? (isSelected ? 'Selected' : 'Not selected') : 'Click to start assessment'
+    ].filter(Boolean).join('. ');
 
     return (
-        <button onClick={() => onClick(symptom.id)} className={`${baseClasses} ${styles[variant]} ${selectedStyle} ${!isMultiSelectMode && 'active:scale-95 hover:-translate-y-1'}`}>
+        <button 
+          onClick={() => onClick(symptom.id)} 
+          className={`${baseClasses} ${styles[variant]} ${selectedStyle} ${!isMultiSelectMode && 'active:scale-95 hover:-translate-y-1'}`}
+          aria-label={ariaLabel}
+          aria-pressed={isMultiSelectMode ? isSelected : undefined}
+          role={isMultiSelectMode ? "checkbox" : "button"}
+        >
             {badge}
             {isMultiSelectMode && (
-                 <div className={`absolute top-3 right-3 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-teal-500 border-teal-500' : 'border-slate-300 bg-white'}`}>
+                 <div 
+                   className={`absolute top-3 right-3 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-teal-500 border-teal-500' : 'border-slate-300 bg-white'}`}
+                   aria-hidden="true"
+                 >
                      {isSelected && <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
                  </div>
             )}
             <div className="flex justify-between items-start w-full">
-                 <div className={`p-3.5 rounded-2xl transition-colors ${iconBg}`}>
+                 <div className={`p-3.5 rounded-2xl transition-colors ${iconBg}`} aria-hidden="true">
                     {symptom.icon}
                 </div>
                 {!result && !isMultiSelectMode && (
-                    <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200" aria-hidden="true">
                         <span className="text-slate-400 font-bold text-lg leading-none">➔</span>
                     </div>
                 )}
             </div>
             <div className="mt-4">
                 <span className="font-bold text-slate-800 text-lg block leading-tight mb-1 group-hover:text-teal-700 transition-colors">{symptom.name}</span>
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{variant === 'emergency' ? 'Immediate Triage' : 'Standard Check'}</span>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                  {variant === 'emergency' ? '⚠ Immediate Triage' : '○ Standard Check'}
+                </span>
             </div>
         </button>
     );
@@ -129,17 +219,75 @@ const ProgressBar: React.FC<{ stage: string }> = ({ stage }) => {
     { id: 'complete', label: 'Result', active: stage === 'complete' }
   ];
 
+  // Find current step for screen readers
+  const currentStep = steps.findIndex(s => 
+    (s.id === 'screening' && stage === 'screening') ||
+    (s.id === 'followup' && stage === 'followup') ||
+    (s.id === 'complete' && stage === 'complete')
+  ) + 1;
+
   return (
-    <div className="w-full max-w-xs mx-auto mb-4 px-6">
+    <nav 
+      className="w-full max-w-xs mx-auto mb-4 px-6"
+      aria-label={`Assessment progress: Step ${currentStep} of ${steps.length}`}
+      role="progressbar"
+      aria-valuenow={currentStep}
+      aria-valuemin={1}
+      aria-valuemax={steps.length}
+    >
       <div className="flex justify-between items-center relative">
-        <div className="absolute top-1.5 left-0 w-full h-0.5 bg-slate-200 -z-10"></div>
+        <div className="absolute top-1.5 left-0 w-full h-0.5 bg-slate-200 -z-10" aria-hidden="true"></div>
         {steps.map((step, idx) => (
           <div key={step.id} className="flex flex-col items-center bg-slate-50 px-2 z-10">
-             <div className={`w-3 h-3 rounded-full border-[3px] transition-colors duration-500 ${step.active ? 'bg-white border-teal-600 box-content' : 'bg-slate-200 border-slate-200'}`}></div>
-             <span className={`text-[9px] font-bold mt-1 uppercase tracking-wider transition-colors duration-300 ${step.active ? 'text-teal-700' : 'text-slate-300'}`}>{step.label}</span>
+             <div 
+               className={`w-3 h-3 rounded-full border-[3px] transition-colors duration-500 ${step.active ? 'bg-white border-teal-600 box-content' : 'bg-slate-200 border-slate-200'}`}
+               aria-hidden="true"
+             ></div>
+             <span 
+               className={`text-[9px] font-bold mt-1 uppercase tracking-wider transition-colors duration-300 ${step.active ? 'text-teal-700' : 'text-slate-300'}`}
+               aria-current={step.id === stage ? 'step' : undefined}
+             >
+               {step.label}
+             </span>
           </div>
         ))}
       </div>
+    </nav>
+  );
+};
+
+// --- Accessibility: Font Size Selector Component ---
+const FontSizeSelector: React.FC<{ fontScale: FontScale; setFontScale: (scale: FontScale) => void }> = ({ fontScale, setFontScale }) => {
+  const sizes: { value: FontScale; label: string; icon: string }[] = [
+    { value: 'small', label: 'Small text', icon: 'A' },
+    { value: 'normal', label: 'Normal text', icon: 'A' },
+    { value: 'large', label: 'Large text', icon: 'A' },
+    { value: 'xlarge', label: 'Extra large text', icon: 'A' },
+  ];
+
+  return (
+    <div 
+      className="flex items-center space-x-1 bg-slate-100 rounded-lg p-1"
+      role="group"
+      aria-label="Text size selector"
+    >
+      {sizes.map((size, idx) => (
+        <button
+          key={size.value}
+          onClick={() => setFontScale(size.value)}
+          className={`px-2 py-1 rounded transition-all font-bold ${
+            fontScale === size.value 
+              ? 'bg-white text-teal-700 shadow-sm' 
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+          style={{ fontSize: `${10 + idx * 2}px` }}
+          aria-label={size.label}
+          aria-pressed={fontScale === size.value}
+          title={size.label}
+        >
+          {size.icon}
+        </button>
+      ))}
     </div>
   );
 };
@@ -478,10 +626,17 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
+  
+  // Accessibility: Font scale management
+  const { fontScale, setFontScale } = useFontScale();
+  
+  // Accessibility: Screen reader announcement state
+  const [announcement, setAnnouncement] = useState('');
 
   const emergencyRef = useRef<HTMLDivElement>(null);
   const commonRef = useRef<HTMLDivElement>(null);
   const otherRef = useRef<HTMLDivElement>(null);
+  const mainContentRef = useRef<HTMLDivElement>(null);
 
   const scrollToSection = (ref: React.RefObject<HTMLDivElement | null>) => {
       ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -574,11 +729,30 @@ function App() {
 
   return (
     <div className="flex flex-col h-[100dvh] w-full mx-auto overflow-hidden font-sans text-slate-900 bg-slate-50">
+      {/* Accessibility: Skip to main content link */}
+      <a 
+        href="#main-content" 
+        className="skip-link"
+        onClick={(e) => {
+          e.preventDefault();
+          mainContentRef.current?.focus();
+          mainContentRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }}
+      >
+        Skip to main content
+      </a>
+      
+      {/* Accessibility: Screen reader announcements */}
+      <ScreenReaderAnnounce message={announcement} />
+      
       {/* Sticky Header */}
-      <div className="sticky top-0 z-40 w-full bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-200 shrink-0">
+      <header 
+        className="sticky top-0 z-40 w-full bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-200 shrink-0"
+        role="banner"
+      >
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center space-x-3">
-                <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center text-white shadow-md bg-gradient-to-br from-teal-500 to-teal-700">
+                <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center text-white shadow-md bg-gradient-to-br from-teal-500 to-teal-700" aria-hidden="true">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
                     <path d="M10.5 3C7.46 3 5 5.46 5 8.5C5 12.3 8.5 16 10 17.5L8.5 21H11L12 18.5L13 21H15.5L14 17.5C15.5 16 19 12.3 19 8.5C19 5.46 16.54 3 13.5 3C12.4 3 11.4 3.3 10.5 3ZM12 5C13.93 5 15.5 6.57 15.5 8.5C15.5 10.9 13.5 13.5 12 15C10.5 13.5 8.5 10.9 8.5 8.5C8.5 6.57 10.07 5 12 5Z" />
                   </svg>
@@ -588,17 +762,31 @@ function App() {
                     <p className="text-slate-400 text-[10px] font-bold tracking-wider uppercase">Symptom Triage AI</p>
                 </div>
             </div>
-            <div className="flex items-center space-x-3">
-                <button onClick={handleShare} className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors" title="Share App Link">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+            <div className="flex items-center space-x-2 sm:space-x-3">
+                {/* Accessibility: Font Size Selector */}
+                <div className="hidden sm:block">
+                  <FontSizeSelector fontScale={fontScale} setFontScale={setFontScale} />
+                </div>
+                
+                <button 
+                  onClick={handleShare} 
+                  className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors" 
+                  title="Share App Link"
+                  aria-label="Share application link"
+                >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
                 </button>
                 {stage !== 'selection' ? (
-                    <button onClick={reset} className="bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold py-2 px-4 rounded-lg transition-all border border-slate-200 shadow-sm hover:shadow active:scale-95">
+                    <button 
+                      onClick={reset} 
+                      className="bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold py-2 px-4 rounded-lg transition-all border border-slate-200 shadow-sm hover:shadow active:scale-95"
+                      aria-label="Exit current assessment and return to symptom selection"
+                    >
                         Exit Chat
                     </button>
                 ) : (
-                    <div className="flex items-center space-x-2">
-                    <span className="relative flex h-2 w-2">
+                    <div className="flex items-center space-x-2" role="status" aria-label="System status: Online">
+                    <span className="relative flex h-2 w-2" aria-hidden="true">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500"></span>
                         </span>
@@ -607,45 +795,74 @@ function App() {
                 )}
             </div>
         </div>
-      </div>
+      </header>
 
-      <div className="flex-1 overflow-y-auto bg-slate-50 scrollbar-hide" ref={scrollRef}>
+      <main 
+        id="main-content"
+        className="flex-1 overflow-y-auto bg-slate-50 scrollbar-hide" 
+        ref={scrollRef}
+        tabIndex={-1}
+        role="main"
+        aria-label={stage === 'selection' ? 'Symptom selection dashboard' : 'Symptom assessment conversation'}
+      >
         
         {stage === 'selection' ? (
             /* --- DASHBOARD VIEW --- */
-            <div className="animate-fade-in pb-20">
+            <div className="animate-fade-in pb-20" ref={mainContentRef}>
                 {/* Hero / Search Section */}
                 <div className="bg-teal-700 px-4 pt-10 pb-12 relative overflow-hidden bg-gradient-to-br from-teal-700 to-teal-900">
-                    <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none mix-blend-overlay">
+                    <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none mix-blend-overlay" aria-hidden="true">
                          <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0 100 C 20 0 50 0 100 100 Z" fill="white" /></svg>
                     </div>
                     <div className="max-w-2xl mx-auto text-center relative z-10">
                         <h2 className="text-3xl md:text-4xl font-bold text-white mb-3 tracking-tight">How are you feeling?</h2>
                         <p className="text-teal-100 text-sm md:text-base mb-8 opacity-90">Select a symptom below to start your professional safety assessment.</p>
                         
+                        {/* Mobile Font Size Selector */}
+                        <div className="sm:hidden flex justify-center mb-6">
+                          <FontSizeSelector fontScale={fontScale} setFontScale={setFontScale} />
+                        </div>
+                        
                         <div className="relative max-w-lg mx-auto group mb-4">
-                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <label htmlFor="symptom-search" className="sr-only">Search symptoms</label>
+                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none" aria-hidden="true">
                                 <svg className="h-5 w-5 text-slate-400 group-focus-within:text-teal-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                             </div>
                             <input 
-                                type="text" 
+                                id="symptom-search"
+                                type="search" 
                                 className="block w-full pl-12 pr-4 py-4 rounded-2xl text-slate-900 placeholder-slate-400 bg-white shadow-xl focus:ring-4 focus:ring-teal-500/30 focus:outline-none text-base transition-all"
                                 placeholder="Search symptoms (e.g. Fever, Pain)..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
+                                aria-label="Search symptoms by name"
+                                aria-describedby="search-results-count"
                             />
+                            <span id="search-results-count" className="sr-only">
+                              {filteredSymptoms.length} symptoms found
+                            </span>
                         </div>
                         
-                        <div className="flex justify-center items-center space-x-3 bg-teal-800/50 inline-block p-1 rounded-full backdrop-blur-sm">
+                        <div 
+                          className="flex justify-center items-center space-x-3 bg-teal-800/50 inline-block p-1 rounded-full backdrop-blur-sm"
+                          role="radiogroup"
+                          aria-label="Selection mode"
+                        >
                              <button 
                                 onClick={() => { setIsMultiSelectMode(false); setSelectedSymptoms([]); }}
                                 className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${!isMultiSelectMode ? 'bg-white text-teal-700 shadow' : 'text-teal-200 hover:text-white'}`}
+                                role="radio"
+                                aria-checked={!isMultiSelectMode}
+                                aria-label="Single symptom check mode"
                              >
                                  Single Check
                              </button>
                              <button 
                                 onClick={() => setIsMultiSelectMode(true)}
                                 className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${isMultiSelectMode ? 'bg-white text-teal-700 shadow' : 'text-teal-200 hover:text-white'}`}
+                                role="radio"
+                                aria-checked={isMultiSelectMode}
+                                aria-label="Multiple symptom selection mode"
                              >
                                  Multi-Select
                              </button>
@@ -654,62 +871,83 @@ function App() {
                 </div>
 
                 {/* Static Category Nav */}
-                <div className="bg-white border-b border-slate-100 py-4 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] relative z-20">
+                <nav 
+                  className="bg-white border-b border-slate-100 py-4 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] relative z-20"
+                  aria-label="Symptom categories"
+                >
                     <div className="max-w-5xl mx-auto px-4">
-                        <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar pb-1">
-                             <span className="text-xs font-bold text-slate-400 uppercase mr-2 shrink-0 hidden sm:inline-block">Jump to:</span>
-                             <button onClick={() => scrollToSection(emergencyRef)} className="shrink-0 px-4 py-2 rounded-full bg-red-50 text-red-600 font-bold text-xs uppercase tracking-wider border border-red-100 hover:bg-red-100 transition-colors shadow-sm">Emergency</button>
-                             <button onClick={() => scrollToSection(commonRef)} className="shrink-0 px-4 py-2 rounded-full bg-teal-50 text-teal-600 font-bold text-xs uppercase tracking-wider border border-teal-100 hover:bg-teal-100 transition-colors shadow-sm">Common Side Effects</button>
-                             <button onClick={() => scrollToSection(otherRef)} className="shrink-0 px-4 py-2 rounded-full bg-indigo-50 text-indigo-600 font-bold text-xs uppercase tracking-wider border border-indigo-100 hover:bg-indigo-100 transition-colors shadow-sm">General Symptoms</button>
+                        <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar pb-1" role="group">
+                             <span className="text-xs font-bold text-slate-400 uppercase mr-2 shrink-0 hidden sm:inline-block" id="category-nav-label">Jump to:</span>
+                             <button 
+                               onClick={() => scrollToSection(emergencyRef)} 
+                               className="shrink-0 px-4 py-2 rounded-full bg-red-50 text-red-600 font-bold text-xs uppercase tracking-wider border border-red-100 hover:bg-red-100 transition-colors shadow-sm focus-emergency"
+                               aria-label="Jump to emergency symptoms section"
+                             >
+                               ⚠ Emergency
+                             </button>
+                             <button 
+                               onClick={() => scrollToSection(commonRef)} 
+                               className="shrink-0 px-4 py-2 rounded-full bg-teal-50 text-teal-600 font-bold text-xs uppercase tracking-wider border border-teal-100 hover:bg-teal-100 transition-colors shadow-sm"
+                               aria-label="Jump to common side effects section"
+                             >
+                               ○ Common Side Effects
+                             </button>
+                             <button 
+                               onClick={() => scrollToSection(otherRef)} 
+                               className="shrink-0 px-4 py-2 rounded-full bg-indigo-50 text-indigo-600 font-bold text-xs uppercase tracking-wider border border-indigo-100 hover:bg-indigo-100 transition-colors shadow-sm"
+                               aria-label="Jump to general symptoms section"
+                             >
+                               ◇ General Symptoms
+                             </button>
                         </div>
                     </div>
-                </div>
+                </nav>
 
                 {/* Cards Container */}
                 <div className="max-w-5xl mx-auto px-4 mt-8 relative z-10 space-y-12">
                     {(URGENT_SYMPTOMS.length > 0 || searchQuery === '') && (
-                        <div ref={emergencyRef} className="scroll-mt-32">
+                        <section ref={emergencyRef} className="scroll-mt-32" aria-labelledby="emergency-heading">
                             <div className="flex items-center mb-4 pb-2 border-b border-slate-100">
-                                <span className="bg-red-100 text-red-600 p-1.5 rounded-lg mr-3"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg></span>
-                                <h3 className="text-sm font-bold text-slate-600 uppercase tracking-widest">Emergency Symptoms</h3>
+                                <span className="bg-red-100 text-red-600 p-1.5 rounded-lg mr-3 status-pattern-emergency" aria-hidden="true"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg></span>
+                                <h3 id="emergency-heading" className="text-sm font-bold text-slate-600 uppercase tracking-widest">⚠ Emergency Symptoms</h3>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" role="list" aria-label="Emergency symptoms list">
                                 {URGENT_SYMPTOMS.map(s => (
                                     <SymptomCard key={s.id} symptom={s} onClick={handleCardClick} variant="emergency" result={visitedSymptoms.includes(s.id) ? symptomResults[s.id] : undefined} isMultiSelectMode={isMultiSelectMode} isSelected={selectedSymptoms.includes(s.id)} />
                                 ))}
-                                {URGENT_SYMPTOMS.length === 0 && <p className="text-slate-400 italic text-sm col-span-full text-center py-8">No emergency symptoms match your search.</p>}
+                                {URGENT_SYMPTOMS.length === 0 && <p className="text-slate-400 italic text-sm col-span-full text-center py-8" role="status">No emergency symptoms match your search.</p>}
                             </div>
-                        </div>
+                        </section>
                     )}
 
                     {(COMMON_SYMPTOMS.length > 0 || searchQuery === '') && (
-                        <div ref={commonRef} className="scroll-mt-32">
+                        <section ref={commonRef} className="scroll-mt-32" aria-labelledby="common-heading">
                             <div className="flex items-center mb-4 pb-2 border-b border-slate-100">
-                                <span className="bg-teal-100 text-teal-600 p-1.5 rounded-lg mr-3"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg></span>
-                                <h3 className="text-sm font-bold text-slate-600 uppercase tracking-widest">Common Side Effects</h3>
+                                <span className="bg-teal-100 text-teal-600 p-1.5 rounded-lg mr-3" aria-hidden="true"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg></span>
+                                <h3 id="common-heading" className="text-sm font-bold text-slate-600 uppercase tracking-widest">○ Common Side Effects</h3>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" role="list" aria-label="Common side effects list">
                                 {COMMON_SYMPTOMS.map(s => (
                                     <SymptomCard key={s.id} symptom={s} onClick={handleCardClick} variant="common" result={visitedSymptoms.includes(s.id) ? symptomResults[s.id] : undefined} isMultiSelectMode={isMultiSelectMode} isSelected={selectedSymptoms.includes(s.id)} />
                                 ))}
-                                {COMMON_SYMPTOMS.length === 0 && <p className="text-slate-400 italic text-sm col-span-full text-center py-8">No common symptoms match your search.</p>}
+                                {COMMON_SYMPTOMS.length === 0 && <p className="text-slate-400 italic text-sm col-span-full text-center py-8" role="status">No common symptoms match your search.</p>}
                             </div>
-                        </div>
+                        </section>
                     )}
 
                     {(OTHER_SYMPTOMS.length > 0 || searchQuery === '') && (
-                        <div ref={otherRef} className="scroll-mt-32">
+                        <section ref={otherRef} className="scroll-mt-32" aria-labelledby="other-heading">
                             <div className="flex items-center mb-4 pb-2 border-b border-slate-100">
-                                <span className="bg-indigo-100 text-indigo-600 p-1.5 rounded-lg mr-3"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg></span>
-                                <h3 className="text-sm font-bold text-slate-600 uppercase tracking-widest">General & Other Symptoms</h3>
+                                <span className="bg-indigo-100 text-indigo-600 p-1.5 rounded-lg mr-3" aria-hidden="true"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg></span>
+                                <h3 id="other-heading" className="text-sm font-bold text-slate-600 uppercase tracking-widest">◇ General & Other Symptoms</h3>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" role="list" aria-label="General symptoms list">
                                 {OTHER_SYMPTOMS.map(s => (
                                     <SymptomCard key={s.id} symptom={s} onClick={handleCardClick} variant="other" result={visitedSymptoms.includes(s.id) ? symptomResults[s.id] : undefined} isMultiSelectMode={isMultiSelectMode} isSelected={selectedSymptoms.includes(s.id)} />
                                 ))}
-                                {OTHER_SYMPTOMS.length === 0 && <p className="text-slate-400 italic text-sm col-span-full text-center py-8">No other symptoms match your search.</p>}
+                                {OTHER_SYMPTOMS.length === 0 && <p className="text-slate-400 italic text-sm col-span-full text-center py-8" role="status">No other symptoms match your search.</p>}
                             </div>
-                        </div>
+                        </section>
                     )}
                     
                     <div className="text-center border-t border-slate-200 pt-10 pb-8">
@@ -719,43 +957,50 @@ function App() {
                 </div>
                 
                 {isMultiSelectMode && selectedSymptoms.length > 0 && (
-                    <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 animate-fade-in w-full max-w-sm px-4">
+                    <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 animate-fade-in w-full max-w-sm px-4" role="region" aria-live="polite">
                         <button 
                             onClick={handleStartMultiSession}
                             className="w-full bg-slate-900 text-white py-4 rounded-2xl shadow-2xl font-bold text-lg flex items-center justify-center hover:bg-slate-800 transition-all active:scale-95"
+                            aria-label={`Start assessment for ${selectedSymptoms.length} selected symptoms`}
                         >
                             <span>Start Assessment ({selectedSymptoms.length})</span>
-                            <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                            <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                         </button>
                     </div>
                 )}
             </div>
         ) : (
             /* --- CHAT VIEW --- */
-            <div className="p-4 max-w-2xl mx-auto w-full">
+            <div className="p-4 max-w-2xl mx-auto w-full" ref={mainContentRef}>
                 <div className="sticky top-0 bg-slate-50 z-10 pt-4 pb-2">
                    <ProgressBar stage={stage} />
                 </div>
 
-                {history.map((msg) => (
-                    <ChatBubble key={msg.id} message={msg} />
-                ))}
+                <div role="log" aria-live="polite" aria-label="Chat conversation">
+                  {history.map((msg) => (
+                      <ChatBubble key={msg.id} message={msg} />
+                  ))}
+                </div>
                 {isTyping && <TypingIndicator />}
                 
                 {stage === 'complete' && (
                     <div className="animate-fade-in mt-8 mb-8">
                         {highestSeverity === 'call_911' && (
-                            <div className="bg-red-50 border border-red-100 rounded-3xl p-8 shadow-xl text-center relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-red-200 rounded-full blur-3xl opacity-20 -mr-10 -mt-10"></div>
-                                <div className="text-6xl mb-4 animate-bounce">🚨</div>
-                                <h2 className="text-3xl font-extrabold text-red-700 mb-2 tracking-tight">Immediate Emergency</h2>
+                            <div 
+                              className="bg-red-50 border border-red-100 rounded-3xl p-8 shadow-xl text-center relative overflow-hidden status-pattern-emergency"
+                              role="alert"
+                              aria-live="assertive"
+                            >
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-red-200 rounded-full blur-3xl opacity-20 -mr-10 -mt-10" aria-hidden="true"></div>
+                                <div className="text-6xl mb-4 animate-bounce" aria-hidden="true">🚨</div>
+                                <h2 className="text-3xl font-extrabold text-red-700 mb-2 tracking-tight">⚠ EMERGENCY - Immediate Action Required</h2>
                                 <p className="text-red-800 text-lg font-semibold mb-8">Call 911 or your Care Team right away. This is an emergency.</p>
                                 <div className="bg-white rounded-2xl p-5 border border-red-100 text-left shadow-sm">
                                     <p className="text-[10px] text-red-400 uppercase font-bold mb-3 tracking-widest">Clinical Reasoning:</p>
-                                    <ul className="space-y-2 text-red-900 text-sm font-medium">
+                                    <ul className="space-y-2 text-red-900 text-sm font-medium" aria-label="Reasons for emergency status">
                                         {triageReasons.map((r, i) => (
                                             <li key={i} className="flex items-start">
-                                                <span className="mr-2 text-red-500 font-bold">•</span> {r}
+                                                <span className="mr-2 text-red-500 font-bold" aria-hidden="true">•</span> {r}
                                             </li>
                                         ))}
                                     </ul>
@@ -764,16 +1009,20 @@ function App() {
                         )}
 
                         {highestSeverity === 'notify_care_team' && (
-                            <div className="bg-amber-50 border border-amber-100 rounded-3xl p-8 shadow-xl text-center">
-                                <div className="text-6xl mb-4">⚠️</div>
-                                <h2 className="text-3xl font-extrabold text-amber-700 mb-2 tracking-tight">Clinical Alert</h2>
+                            <div 
+                              className="bg-amber-50 border border-amber-100 rounded-3xl p-8 shadow-xl text-center status-pattern-alert"
+                              role="alert"
+                              aria-live="polite"
+                            >
+                                <div className="text-6xl mb-4" aria-hidden="true">⚠️</div>
+                                <h2 className="text-3xl font-extrabold text-amber-700 mb-2 tracking-tight">⚡ ALERT - Clinical Alert</h2>
                                 <p className="text-amber-900 text-lg font-medium mb-8">I have captured these details and am notifying your care team. Please keep your phone nearby for a call from the clinic.</p>
                                 <div className="bg-white rounded-2xl p-5 border border-amber-100 text-left shadow-sm">
                                     <p className="text-[10px] text-amber-400 uppercase font-bold mb-3 tracking-widest">Clinical Reasoning:</p>
-                                    <ul className="space-y-2 text-amber-900 text-sm font-medium">
+                                    <ul className="space-y-2 text-amber-900 text-sm font-medium" aria-label="Reasons for alert status">
                                         {triageReasons.map((r, i) => (
                                              <li key={i} className="flex items-start">
-                                                <span className="mr-2 text-amber-500 font-bold">•</span> {r}
+                                                <span className="mr-2 text-amber-500 font-bold" aria-hidden="true">•</span> {r}
                                             </li>
                                         ))}
                                     </ul>
@@ -782,17 +1031,21 @@ function App() {
                         )}
 
                         {highestSeverity === 'refer_provider' && (
-                            <div className="bg-blue-50 border border-blue-100 rounded-3xl p-8 shadow-xl text-center">
-                                <div className="text-6xl mb-4">ℹ️</div>
-                                <h2 className="text-3xl font-extrabold text-blue-700 mb-2 tracking-tight">Non-Urgent</h2>
+                            <div 
+                              className="bg-blue-50 border border-blue-100 rounded-3xl p-8 shadow-xl text-center"
+                              role="status"
+                              aria-live="polite"
+                            >
+                                <div className="text-6xl mb-4" aria-hidden="true">ℹ️</div>
+                                <h2 className="text-3xl font-extrabold text-blue-700 mb-2 tracking-tight">📋 CONSULT - Non-Urgent</h2>
                                 <p className="text-blue-900 mb-6 text-lg">Please let your care team know about these symptoms at your next appointment.</p>
                                 <p className="text-blue-800 mb-8 text-sm font-medium">This chatbot is not a substitute for medical care. If you feel unsafe, please call 911.</p>
                                 <div className="bg-white rounded-2xl p-5 border border-blue-100 text-left shadow-sm">
                                     <p className="text-[10px] text-blue-400 uppercase font-bold mb-3 tracking-widest">Notes:</p>
-                                    <ul className="space-y-2 text-blue-900 text-sm font-medium">
+                                    <ul className="space-y-2 text-blue-900 text-sm font-medium" aria-label="Assessment notes">
                                         {triageReasons.map((r, i) => (
                                             <li key={i} className="flex items-start">
-                                                <span className="mr-2 text-blue-500 font-bold">•</span> {r}
+                                                <span className="mr-2 text-blue-500 font-bold" aria-hidden="true">•</span> {r}
                                             </li>
                                         ))}
                                     </ul>
@@ -801,9 +1054,13 @@ function App() {
                         )}
 
                         {highestSeverity === 'none' && (
-                            <div className="bg-green-50 border border-green-100 rounded-3xl p-8 shadow-xl text-center">
-                                <div className="text-6xl mb-4">✅</div>
-                                <h2 className="text-3xl font-extrabold text-green-700 mb-2 tracking-tight">Non-Urgent</h2>
+                            <div 
+                              className="bg-green-50 border border-green-100 rounded-3xl p-8 shadow-xl text-center status-pattern-safe"
+                              role="status"
+                              aria-live="polite"
+                            >
+                                <div className="text-6xl mb-4" aria-hidden="true">✅</div>
+                                <h2 className="text-3xl font-extrabold text-green-700 mb-2 tracking-tight">✓ SAFE - Non-Urgent</h2>
                                 <p className="text-green-900 mb-4 text-lg">Please let your care team know about these symptoms at your next appointment.</p>
                                 <p className="text-sm text-green-700 font-medium">This chatbot is not a substitute for medical care. If you feel unsafe, please call 911.</p>
                             </div>
@@ -864,25 +1121,44 @@ function App() {
                 )}
             </div>
         )}
-      </div>
+      </main>
 
       {stage !== 'selection' && stage !== 'complete' && (
-        <div className="bg-white/90 backdrop-blur-md border-t border-slate-200 p-4 pb-8 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.05)] w-full shrink-0 z-30 max-h-[55dvh] overflow-y-auto overscroll-contain">
+        <footer 
+          className="bg-white/90 backdrop-blur-md border-t border-slate-200 p-4 pb-8 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.05)] w-full shrink-0 z-30 max-h-[55dvh] overflow-y-auto overscroll-contain"
+          role="region"
+          aria-label="Answer input area"
+        >
             <div className="max-w-2xl mx-auto animate-fade-in">
                 {currentQuestion?.type === 'yes_no' && (
-                <div className="grid grid-cols-2 gap-4">
-                    <button onClick={() => handleAnswer(false)} className="p-4 rounded-2xl border-2 border-slate-200 font-bold text-slate-600 text-lg hover:border-slate-300 hover:bg-slate-50 active:scale-95 transition-all">No</button>
-                    <button onClick={() => handleAnswer(true)} className="p-4 rounded-2xl bg-teal-600 text-white font-bold text-lg shadow-lg hover:bg-teal-700 active:scale-95 transition-all hover:shadow-teal-500/30">Yes</button>
+                <div className="grid grid-cols-2 gap-4" role="group" aria-label="Yes or No answer options">
+                    <button 
+                      onClick={() => handleAnswer(false)} 
+                      className="p-4 rounded-2xl border-2 border-slate-200 font-bold text-slate-600 text-lg hover:border-slate-300 hover:bg-slate-50 active:scale-95 transition-all"
+                      aria-label="Answer No"
+                    >
+                      No
+                    </button>
+                    <button 
+                      onClick={() => handleAnswer(true)} 
+                      className="p-4 rounded-2xl bg-teal-600 text-white font-bold text-lg shadow-lg hover:bg-teal-700 active:scale-95 transition-all hover:shadow-teal-500/30"
+                      aria-label="Answer Yes"
+                    >
+                      Yes
+                    </button>
                 </div>
                 )}
 
                 {currentQuestion?.type === 'choice' && (
-                <div className="grid grid-cols-1 gap-2">
+                <div className="grid grid-cols-1 gap-2" role="radiogroup" aria-label="Select one option">
                     {currentQuestion.options?.map(opt => (
                         <button 
                         key={opt.value.toString()} 
                         onClick={() => handleAnswer(opt.value)}
                         className="p-4 rounded-2xl border border-slate-200 text-left font-semibold text-slate-700 hover:bg-teal-50 hover:border-teal-200 hover:text-teal-800 transition-all shadow-sm active:scale-98 whitespace-normal"
+                        role="radio"
+                        aria-checked="false"
+                        aria-label={`Select ${opt.label}`}
                         >
                         {opt.label}
                         </button>
@@ -891,7 +1167,8 @@ function App() {
                 )}
 
                 {currentQuestion?.type === 'multiselect' && (
-                <div className="space-y-3">
+                <div className="space-y-3" role="group" aria-label="Select all that apply">
+                    <p className="text-xs text-slate-500 font-medium mb-2" id="multiselect-hint">Select all options that apply, then confirm your selection</p>
                     {currentQuestion.options?.map(opt => (
                     <button
                         key={opt.value.toString()}
@@ -901,25 +1178,34 @@ function App() {
                             ? 'bg-teal-600 border-teal-600 text-white ring-2 ring-teal-300 ring-offset-1' 
                             : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                         }`}
+                        role="checkbox"
+                        aria-checked={multiSelect.includes(opt.value as string)}
+                        aria-describedby="multiselect-hint"
+                        aria-label={`${opt.label}${multiSelect.includes(opt.value as string) ? ' (selected)' : ''}`}
                     >
                         <span className="flex-1 pr-2">{opt.label}</span>
                         {multiSelect.includes(opt.value as string) && (
-                            <span className="bg-white text-teal-600 rounded-full w-6 h-6 flex shrink-0 items-center justify-center font-bold text-sm">✓</span>
+                            <span className="bg-white text-teal-600 rounded-full w-6 h-6 flex shrink-0 items-center justify-center font-bold text-sm" aria-hidden="true">✓</span>
                         )}
                     </button>
                     ))}
                     <button 
                     onClick={handleMultiSelectSubmit}
                     className="w-full p-4 bg-slate-900 text-white rounded-2xl font-bold text-lg shadow-lg hover:bg-slate-800 transition-all mt-2 active:scale-95 hover:shadow-xl"
+                    aria-label={`Confirm selection of ${multiSelect.length} item${multiSelect.length !== 1 ? 's' : ''}`}
                     >
-                    Confirm Selection
+                    Confirm Selection ({multiSelect.length})
                     </button>
                 </div>
                 )}
 
                 {(currentQuestion?.type === 'text' || currentQuestion?.type === 'number') && (
                 <div className="flex space-x-3">
+                    <label htmlFor="answer-input" className="sr-only">
+                      {currentQuestion.type === 'number' ? 'Enter a number' : 'Type your answer'}
+                    </label>
                     <input 
+                    id="answer-input"
                     type={currentQuestion.type === 'number' ? 'number' : 'text'} 
                     value={textInput}
                     onChange={(e) => setTextInput(e.target.value)}
@@ -928,18 +1214,22 @@ function App() {
                     className="flex-1 p-4 rounded-2xl border border-slate-200 text-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent shadow-inner bg-slate-50"
                     onKeyDown={(e) => e.key === 'Enter' && handleSubmitText()}
                     autoFocus
+                    aria-label={currentQuestion.type === 'number' ? 'Enter a number' : 'Type your answer'}
+                    aria-describedby="input-hint"
                     />
+                    <span id="input-hint" className="sr-only">Press Enter or click Send to submit</span>
                     <button 
                     onClick={handleSubmitText}
                     className="px-6 bg-teal-600 text-white rounded-2xl font-bold shadow-lg hover:bg-teal-700 active:scale-95 transition-all"
+                    aria-label="Submit answer"
                     >
                     <span className="hidden sm:inline">Send</span>
-                    <span className="sm:hidden">➜</span>
+                    <span className="sm:hidden" aria-hidden="true">➜</span>
                     </button>
                 </div>
                 )}
             </div>
-        </div>
+        </footer>
       )}
     </div>
   );

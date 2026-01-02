@@ -255,106 +255,220 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
   },
   
   // --- PAIN SUB-MODULES (Other) ---
-  'URG-109': {
-      id: 'URG-109',
+  // Headache - CNS Urgency (HEA-210)
+  'HEA-210': {
+      id: 'HEA-210',
       name: 'Headache',
       category: 'other',
       hidden: true, 
       icon: Icons.Head,
       screeningQuestions: [
           { id: 'worst_ever', text: 'Is this the worst headache of your life?', type: 'yes_no' },
-          { id: 'vision_confusion', text: 'Are you experiencing any vision changes or confusion with this headache?', type: 'yes_no' }
+          { id: 'vision', text: 'Are you experiencing any vision changes?', type: 'yes_no' },
+          { id: 'confusion', text: 'Are you experiencing confusion or other neurological symptoms?', type: 'yes_no' },
+          { id: 'severity', text: 'Rate your headache:', type: 'choice', options: [
+              {label: 'Mild', value: 'mild'}, 
+              {label: 'Moderate', value: 'mod'}, 
+              {label: 'Severe', value: 'sev'}
+          ]},
+          { id: 'interfere', text: 'Does the headache interfere with your daily activities?', type: 'yes_no' }
       ],
       evaluateScreening: (answers) => {
-          // Alert: Q1 = YES OR Q2 = YES
-          if (answers['worst_ever'] === true || answers['vision_confusion'] === true) {
-              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'Severe headache reported: worst ever or with vision changes/confusion. Notify Care Team immediately.' };
+          // Alert: Worst/Vision/Confusion OR Severe → Notify immediate (mass/bleed risk)
+          if (answers['worst_ever'] === true || answers['vision'] === true || answers['confusion'] === true || answers['severity'] === 'sev') {
+              let reasons = [];
+              if (answers['worst_ever'] === true) reasons.push('Worst headache of life');
+              if (answers['vision'] === true) reasons.push('Vision changes');
+              if (answers['confusion'] === true) reasons.push('Confusion/neuro symptoms');
+              if (answers['severity'] === 'sev') reasons.push('Severe pain');
+              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: `URGENT Headache: ${reasons.join(', ')}. Rule out CNS mass/bleed.` };
           }
-          return { action: 'stop', triageLevel: 'none', triageMessage: 'Headache reported - no red flag symptoms.' };
+          return { action: 'continue' };
+      },
+      followUpQuestions: [
+          { id: 'onset', text: 'When did this headache start?', type: 'choice', options: [
+              {label: 'Sudden (seconds/minutes)', value: 'sudden'},
+              {label: 'Today', value: 'today'},
+              {label: '1-3 days ago', value: '1-3d'},
+              {label: 'More than 3 days', value: '>3d'}
+          ]},
+          { id: 'meds', text: 'Have you taken any medications for the headache?', type: 'yes_no' },
+          { id: 'meds_helped', text: 'Did the medications help?', type: 'yes_no', condition: (a) => a['meds'] === true },
+          { id: 'fever', text: 'Do you have a fever?', type: 'yes_no' }
+      ],
+      evaluateFollowUp: (answers) => {
+          // Sudden onset is very concerning
+          if (answers['onset'] === 'sudden') {
+              return { action: 'stop', triageLevel: 'call_911', triageMessage: 'Sudden onset headache - possible stroke/aneurysm. Seek emergency care.' };
+          }
+          // Fever with headache - possible meningitis
+          if (answers['fever'] === true) {
+              return { action: 'branch', branchToSymptomId: 'FEV-202' };
+          }
+          return { action: 'stop', triageLevel: 'none', triageMessage: 'Headache reported - monitor and follow up if worsening.' };
       }
   },
-  'URG-110': {
-      id: 'URG-110',
-      name: 'Severe Abdominal Pain',
+  // Abdominal Pain - GI Risk (ABD-211)
+  'ABD-211': {
+      id: 'ABD-211',
+      name: 'Abdominal Pain',
       category: 'other',
       hidden: true,
       icon: Icons.Stomach,
       screeningQuestions: [
-          { id: 'pain_scale', text: 'Rate your pain on a scale from 1-10 with 10 being the worst pain.', type: 'number' },
-          { id: 'red_flags', text: 'Do you have any of these?', type: 'multiselect', options: [
-              {label: 'Fever', value: 'fever'},
-              {label: 'Belly swollen/hard', value: 'swollen'},
-              {label: 'Repeated vomiting', value: 'vomit'},
-              {label: 'Cannot pass gas/stool', value: 'blockage'},
-              {label: 'Other', value: 'other'},
-              {label: 'None', value: 'none'}
+          { id: 'cramping', text: 'Is the pain cramping or colicky?', type: 'yes_no' },
+          { id: 'severity', text: 'Rate your abdominal pain:', type: 'choice', options: [
+              {label: 'Mild (1-3)', value: 'mild'}, 
+              {label: 'Moderate (4-6)', value: 'mod'}, 
+              {label: 'Severe (7-10)', value: 'sev'}
           ]},
-          { id: 'red_flags_other', text: 'Please describe:', type: 'text', condition: (a) => a['red_flags']?.includes('other') }
+          { id: 'interfere', text: 'Does the pain interfere with your daily activities?', type: 'yes_no' },
+          { id: 'abd_temp', text: 'What is your temperature?', type: 'number' }
       ],
       evaluateScreening: (answers) => {
-          const score = parseInt(answers['pain_scale']);
-          const flags = answers['red_flags'] || [];
-          if ((!isNaN(score) && score > 7) || (flags.length > 0 && !flags.includes('none'))) {
-              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'Severe Abdominal Pain (>7/10) or Red Flags.' };
+          const t = parseFloat(answers['abd_temp']);
+          const fever = !isNaN(t) && t >= 100.3;
+          
+          // Alert: Mod/Sev OR Cramping → Notify (bleed/obstruction/perforation risk)
+          if (answers['severity'] === 'mod' || answers['severity'] === 'sev' || answers['cramping'] === true || fever) {
+              let reasons = [];
+              if (answers['severity'] === 'sev') reasons.push('Severe pain');
+              if (answers['severity'] === 'mod') reasons.push('Moderate pain');
+              if (answers['cramping'] === true) reasons.push('Cramping');
+              if (fever) reasons.push(`Fever ${t}°F`);
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: `Abdominal pain: ${reasons.join(', ')}. Rule out GI bleed/obstruction.` };
           }
-          return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Abdominal pain reported.' };
+          return { action: 'continue' };
+      },
+      followUpQuestions: [
+          { id: 'vomiting', text: 'Have you been vomiting?', type: 'yes_no' },
+          { id: 'blood_stool', text: 'Is there any blood in your stool?', type: 'yes_no' },
+          { id: 'dehydration', text: 'Are you experiencing signs of dehydration (dark urine, thirsty, lightheaded)?', type: 'yes_no' },
+          { id: 'last_bm', text: 'When was your last bowel movement?', type: 'choice', options: [
+              {label: 'Today', value: 'today'},
+              {label: 'Yesterday', value: 'yesterday'},
+              {label: '2+ days ago', value: '>2d'}
+          ]}
+      ],
+      evaluateFollowUp: (answers) => {
+          // Blood in stool is urgent
+          if (answers['blood_stool'] === true) {
+              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'Abdominal pain with blood in stool - GI bleed concern.' };
+          }
+          // Branch to related modules
+          if (answers['vomiting'] === true) {
+              return { action: 'branch', branchToSymptomId: 'VOM-204' };
+          }
+          if (answers['dehydration'] === true) {
+              return { action: 'branch', branchToSymptomId: 'DEH-201' };
+          }
+          if (answers['last_bm'] === '>2d') {
+              return { action: 'branch', branchToSymptomId: 'CON-210' };
+          }
+          return { action: 'continue' };
       }
   },
-  'URG-111': {
-      id: 'URG-111',
+  // Leg/Calf Pain - DVT Risk (LEG-208)
+  'LEG-208': {
+      id: 'LEG-208',
       name: 'Leg / Calf Pain',
       category: 'other',
       hidden: true,
       icon: Icons.Leg,
       screeningQuestions: [
-          { id: 'swollen_one_leg', text: 'Is one leg more swollen, red, warm, or painful than the other?', type: 'yes_no' },
-          { id: 'worse_walk', text: 'Does the pain get worse when you walk or press on your calf?', type: 'yes_no' }
+          { id: 'asymmetric', text: 'Is one leg more swollen, red, warm, or painful than the other?', type: 'yes_no' },
+          { id: 'worse_walk_press', text: 'Does the pain get worse when you walk or press on your calf?', type: 'yes_no' },
+          { id: 'severity', text: 'Rate your leg/calf pain:', type: 'choice', options: [
+              {label: 'Mild', value: 'mild'}, 
+              {label: 'Moderate', value: 'mod'}, 
+              {label: 'Severe', value: 'sev'}
+          ]},
+          { id: 'interfere', text: 'Does the pain interfere with walking or daily activities?', type: 'yes_no' }
       ],
       evaluateScreening: (answers) => {
-          // Alert: Any YES (Q1 or Q2) → DVT CONCERN
-          if (answers['swollen_one_leg'] === true || answers['worse_walk'] === true) {
-              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'DVT CONCERN: One leg more swollen/painful or pain worsens with walking/pressure. Notify Care Team immediately.' };
+          // DVT Alert: Asymmetric OR Worse with walk/press → Notify immediate
+          if (answers['asymmetric'] === true || answers['worse_walk_press'] === true) {
+              let reasons = [];
+              if (answers['asymmetric'] === true) reasons.push('One leg more swollen/red/warm/painful');
+              if (answers['worse_walk_press'] === true) reasons.push('Pain worsens with walking/pressure');
+              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: `DVT CONCERN: ${reasons.join(', ')}. Notify Care Team immediately for evaluation.` };
           }
-          return { action: 'stop', triageLevel: 'none', triageMessage: 'Leg pain reported - no DVT signs.' };
+          return { action: 'continue' };
+      },
+      followUpQuestions: [
+          { id: 'immobility', text: 'Have you had recent immobility (bed rest, long travel, surgery)?', type: 'yes_no' },
+          { id: 'clot_history', text: 'Do you have a history of blood clots?', type: 'yes_no' },
+          { id: 'sob', text: 'Are you experiencing any shortness of breath?', type: 'yes_no' }
+      ],
+      evaluateFollowUp: (answers) => {
+          // SOB with leg pain = possible PE → Emergency
+          if (answers['sob'] === true) {
+              return { action: 'stop', triageLevel: 'call_911', triageMessage: 'Leg pain with shortness of breath - possible pulmonary embolism. Seek emergency care.' };
+          }
+          // Risk factors present
+          if (answers['immobility'] === true || answers['clot_history'] === true) {
+              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'Leg pain with DVT risk factors (immobility/clot history). Recommend evaluation.' };
+          }
+          return { action: 'stop', triageLevel: 'none', triageMessage: 'Leg pain - no DVT signs. Monitor and follow up if worsening.' };
       }
-      // Note: No Long FU needed per spec (Urgent priority)
   },
-  'URG-112': {
-      id: 'URG-112',
-      name: 'Joint/Muscle Pain',
+  // Joint/Muscle/General Pain - MSK (JMP-212)
+  'JMP-212': {
+      id: 'JMP-212',
+      name: 'Joint/Muscle/General Pain',
       category: 'other',
       hidden: true,
       icon: Icons.Joint,
       screeningQuestions: [
-           { id: 'mobility', text: 'Is your pain making it hard to move around or sleep?', type: 'yes_no' },
-           { id: 'controlled', text: 'Is the pain controlled with your usual pain medicine?', type: 'yes_no' }
+          { id: 'pain_type', text: 'What type of pain are you experiencing?', type: 'choice', options: [
+              {label: 'Joint pain', value: 'joint'},
+              {label: 'Muscle pain', value: 'muscle'},
+              {label: 'General aches', value: 'general'}
+          ]},
+          { id: 'severity', text: 'Rate your pain:', type: 'choice', options: [
+              {label: 'Mild', value: 'mild'}, 
+              {label: 'Moderate', value: 'mod'}, 
+              {label: 'Severe', value: 'sev'}
+          ]},
+          { id: 'interfere', text: 'Does the pain interfere with your daily activities?', type: 'yes_no' },
+          { id: 'better_rest', text: 'Does the pain get better with rest, hydration, or over-the-counter medicine?', type: 'yes_no' },
+          { id: 'jmp_temp', text: 'What is your temperature?', type: 'number' }
       ],
       evaluateScreening: (answers) => {
-           // Alert: Hard to move/sleep OR NOT controlled
-           if (answers['mobility'] === true || answers['controlled'] === false) {
-               return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'Pain affects mobility/sleep or not controlled with usual medicine.' };
-           }
-           // Non-urgent: Controlled and no sleep/movement impact
-           return { action: 'stop', triageLevel: 'none', triageMessage: 'Please let your care team know about these symptoms at your next appointment. If the pain prevents movement, please return and update me.' };
-      }
-  },
-  'URG-113': {
-      id: 'URG-113',
-      name: 'General Aches & Fatigue',
-      category: 'other',
-      hidden: true,
-      icon: Icons.Ache,
-      screeningQuestions: [
-           { id: 'better', text: 'Does the fatigue or aching get better with rest, hydration, or over-the-counter medicine?', type: 'yes_no' },
-           { id: 'adl', text: 'Has the fatigue affected your ability to bathe, dress, or feed yourself without help?', type: 'yes_no' }
+          const t = parseFloat(answers['jmp_temp']);
+          const fever = !isNaN(t) && t >= 100.4;
+          
+          // Alert: Sev OR Interfere OR Not controlled/better → Notify (mets/arthritis/breakthrough)
+          if (answers['severity'] === 'sev' || answers['interfere'] === true || answers['better_rest'] === false || fever) {
+              let reasons = [];
+              if (answers['severity'] === 'sev') reasons.push('Severe pain');
+              if (answers['interfere'] === true) reasons.push('Interferes with daily activities');
+              if (answers['better_rest'] === false) reasons.push('Not improved with rest/OTC');
+              if (fever) reasons.push(`Fever ${t}°F`);
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: `${answers['pain_type']} pain: ${reasons.join(', ')}. Contact provider.` };
+          }
+          return { action: 'continue' };
+      },
+      followUpQuestions: [
+          { id: 'quality', text: 'How would you describe the pain?', type: 'choice', options: [
+              {label: 'Sharp/stabbing', value: 'sharp'},
+              {label: 'Dull/aching', value: 'ache'},
+              {label: 'Burning', value: 'burning'},
+              {label: 'Throbbing', value: 'throbbing'}
+          ]},
+          { id: 'duration', text: 'How long have you had this pain?', type: 'choice', options: [
+              {label: 'Started today', value: 'today'},
+              {label: '1-3 days', value: '1-3d'},
+              {label: '4-7 days', value: '4-7d'},
+              {label: 'More than a week', value: '>1w'}
+          ]},
+          { id: 'controlled_meds', text: 'Is the pain controlled with your usual pain medications?', type: 'yes_no' }
       ],
-      evaluateScreening: (answers) => {
-           // Alert: NO to Q1 (Doesn't get better) OR YES to Q2 (Can't perform ADLs)
-           if (answers['better'] === false || answers['adl'] === true) {
-               return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'Fatigue is common, but inability to perform self-care is a priority for your care team.' };
-           }
-           // Non-urgent: YES to Q1 AND NO to Q2
-           return { action: 'stop', triageLevel: 'none', triageMessage: 'Fatigue reported but manageable with rest/hydration.' };
+      evaluateFollowUp: (answers) => {
+          if (answers['controlled_meds'] === false) {
+              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'Pain not controlled with usual medications - may need adjustment.' };
+          }
+          return { action: 'stop', triageLevel: 'none', triageMessage: 'Pain reported. Let care team know at next appointment. Return if pain worsens or prevents movement.' };
       }
   },
   'URG-114': {
@@ -1014,40 +1128,74 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       category: 'other',
       icon: Icons.Pain,
       screeningQuestions: [
+          // NOTE: Chest Pain is NOT here - it's an EMERGENCY (URG-102) and should be selected directly
           { id: 'loc', text: 'Where does it hurt?', type: 'multiselect', options: [
-              {label: 'Chest', value: 'chest'}, {label: 'Head', value: 'head'}, {label: 'Stomach', value: 'stomach'}, 
-              {label: 'Legs/Calf', value: 'legs'}, {label: 'Mouth/Throat', value: 'mouth'}, {label: 'Joints/Muscles', value: 'joints'},
-              {label: 'Nerve (Burning/Tingling)', value: 'nerve'}, {label: 'General/Fatigue', value: 'fatigue'}, {label: 'Port Site', value: 'port'},
+              {label: 'Port/IV Site', value: 'port'},           // HIGH RISK - Infection
+              {label: 'Head', value: 'head'},                   // HIGH RISK - CNS
+              {label: 'Leg/Calf (one side)', value: 'legs'},    // HIGH RISK - DVT
+              {label: 'Abdomen/Stomach', value: 'stomach'},     // GI risk
+              {label: 'Urinary/Pelvic', value: 'urinary'},      // UTI/Obstruction
+              {label: 'Joints/Muscles', value: 'joints'},       // MSK
+              {label: 'General Aches', value: 'general'},       // Fatigue/aches
+              {label: 'Nerve (Burning/Tingling)', value: 'nerve'}, // Neuropathy
+              {label: 'Mouth/Throat', value: 'mouth'},          // Oral
               {label: 'Other', value: 'other'}
           ]},
-          { id: 'loc_other', text: 'Please describe the location:', type: 'text', condition: (a) => a['loc']?.includes('other') },
-          { id: 'severity', text: 'Rate your pain', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]},
-          { id: 'interfere', text: 'Does it interfere with daily activities?', type: 'yes_no' },
-          { id: 'pain_temp', text: 'What is your temperature? (Number)', type: 'number' }
+          { id: 'loc_other', text: 'Please describe the location:', type: 'text', condition: (a) => a['loc']?.includes('other') }
       ],
       evaluateScreening: (answers) => {
           const loc = answers['loc'] || [];
-          if (loc.includes('chest')) return { action: 'branch', branchToSymptomId: 'URG-102' };
-          if (loc.includes('head')) return { action: 'branch', branchToSymptomId: 'URG-109' };
-          if (loc.includes('stomach')) return { action: 'branch', branchToSymptomId: 'URG-110' };
-          if (loc.includes('legs')) return { action: 'branch', branchToSymptomId: 'URG-111' };
-          if (loc.includes('joints')) return { action: 'branch', branchToSymptomId: 'URG-112' };
-          if (loc.includes('fatigue')) return { action: 'branch', branchToSymptomId: 'URG-113' };
+          
+          // HIGH-RISK FIRST (Emergent: Port infection, DVT, CNS)
           if (loc.includes('port')) return { action: 'branch', branchToSymptomId: 'URG-114' };
+          if (loc.includes('head')) return { action: 'branch', branchToSymptomId: 'HEA-210' };
+          if (loc.includes('legs')) return { action: 'branch', branchToSymptomId: 'LEG-208' };
+          
+          // GI/Urinary
+          if (loc.includes('stomach')) return { action: 'branch', branchToSymptomId: 'ABD-211' };
+          if (loc.includes('urinary')) return { action: 'branch', branchToSymptomId: 'URI-211' };
+          
+          // MSK/General
+          if (loc.includes('joints')) return { action: 'branch', branchToSymptomId: 'JMP-212' };
+          if (loc.includes('general')) return { action: 'branch', branchToSymptomId: 'JMP-212' };
+          
+          // Other specific
           if (loc.includes('mouth')) return { action: 'branch', branchToSymptomId: 'MSO-208' };
           if (loc.includes('nerve')) return { action: 'branch', branchToSymptomId: 'NEU-216' };
           
-          const t = parseFloat(answers['pain_temp']);
-          const fever = !isNaN(t) && t > 100.3;
-          
-          if (answers['severity'] === 'sev' || answers['severity'] === 'mod' || fever) {
-              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Pain Severity/Fever Met.' };
+          // If "Other" selected, ask common pain questions
+          if (loc.includes('other')) {
+              return { action: 'continue' };
           }
+          
           return { action: 'continue' };
       },
+      // Follow-up for "Other" pain locations
       followUpQuestions: [
-          { id: 'worse', text: 'Is the pain getting worse?', type: 'yes_no' }
-      ]
+          { id: 'severity', text: 'Rate your pain:', type: 'choice', options: [
+              {label: 'Mild (1-3)', value: 'mild'}, 
+              {label: 'Moderate (4-6)', value: 'mod'}, 
+              {label: 'Severe (7-10)', value: 'sev'}
+          ]},
+          { id: 'interfere', text: 'Does the pain interfere with your daily activities or self-care?', type: 'yes_no' },
+          { id: 'pain_temp', text: 'What is your temperature?', type: 'number' },
+          { id: 'controlled', text: 'Is the pain controlled with your usual medications?', type: 'yes_no' }
+      ],
+      evaluateFollowUp: (answers) => {
+          const t = parseFloat(answers['pain_temp']);
+          const fever = !isNaN(t) && t >= 100.3;
+          
+          // Unified Alert: Sev OR Interfere OR Fever OR Not controlled
+          if (answers['severity'] === 'sev' || answers['interfere'] === true || fever || answers['controlled'] === false) {
+              let reasons = [];
+              if (answers['severity'] === 'sev') reasons.push('Severe pain');
+              if (answers['interfere'] === true) reasons.push('Interferes with daily activities');
+              if (fever) reasons.push(`Temp ${t}°F`);
+              if (answers['controlled'] === false) reasons.push('Not controlled with usual meds');
+              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: `Pain alert: ${reasons.join(', ')}. Contact provider.` };
+          }
+          return { action: 'stop', triageLevel: 'none', triageMessage: 'Pain reported - manageable with current treatment.' };
+      }
   },
   'SWE-214': {
       id: 'SWE-214',
@@ -1120,32 +1268,55 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
           return { action: 'continue' }; 
       }
   },
+  // Neuropathy - Nerve Pain (NEU-216)
   'NEU-216': {
       id: 'NEU-216',
-      name: 'Neuropathy (Numbness)',
+      name: 'Neuropathy (Numbness/Tingling)',
       category: 'other',
       icon: Icons.Nerve,
       screeningQuestions: [
-          { id: 'duration', text: 'How long have you had numbness and tingling?', type: 'choice', options: [{label: 'Started Today', value: 'today'}, {label: '1-3 days', value: '1-3d'}, {label: '4-7 days', value: '4-7d'}, {label: '> 1 week', value: '>1w'}, {label: 'Other', value: 'other'}] },
-          { id: 'duration_other', text: 'Please describe:', type: 'text', condition: (a) => a['duration'] === 'other' },
-          { id: 'interfere', text: 'Does the numbness/tingling interfere with your normal activities?', type: 'yes_no' },
-          { id: 'severity', text: 'Rate your symptoms', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]}
+          { id: 'start_date', text: 'When did the numbness/tingling start?', type: 'choice', options: [
+              {label: 'Started today', value: 'today'}, 
+              {label: '1-3 days ago', value: '1-3d'}, 
+              {label: '4-7 days ago', value: '4-7d'}, 
+              {label: 'More than a week ago', value: '>1w'}
+          ]},
+          { id: 'location', text: 'Where do you feel the numbness or tingling?', type: 'text' },
+          { id: 'affect_function', text: 'Does it affect your ability to walk or pick up objects?', type: 'yes_no' },
+          { id: 'severity', text: 'Rate your symptoms:', type: 'choice', options: [
+              {label: 'Mild', value: 'mild'}, 
+              {label: 'Moderate', value: 'mod'}, 
+              {label: 'Severe', value: 'sev'}
+          ]},
+          { id: 'interfere', text: 'Does this interfere with your daily activities?', type: 'yes_no' }
       ],
       evaluateScreening: (answers) => {
-          if (answers['interfere'] === true || answers['severity'] === 'mod' || answers['severity'] === 'sev') {
-              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Interference with Normal Activities OR Rating Moderate-Severe.' };
+          // Alert: Started Today OR Affects walk/objects OR Severe → Notify (chemo acute neuropathy)
+          if (answers['start_date'] === 'today' || answers['affect_function'] === true || answers['severity'] === 'sev') {
+              let reasons = [];
+              if (answers['start_date'] === 'today') reasons.push('New onset today');
+              if (answers['affect_function'] === true) reasons.push('Affects walking/handling objects');
+              if (answers['severity'] === 'sev') reasons.push('Severe symptoms');
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: `Neuropathy alert: ${reasons.join(', ')}. Possible chemo-induced acute neuropathy.` };
           }
           return { action: 'continue' };
       },
       followUpQuestions: [
-          { id: 'motor', text: 'Is it hard to do things like button your shirt, type, write, or walk long distances?', type: 'yes_no' },
-          { id: 'worsening', text: 'Has the numbness or tingling gotten worse in the past week or moved higher up arms/legs?', type: 'yes_no' },
-          { id: 'balance', text: 'Have you had trouble feeling the ground when walking, or felt unsteady or off balance?', type: 'yes_no' },
-          { id: 'meds', text: 'Are you taking any medication for neuropathy?', type: 'yes_no' }
+          { id: 'meds', text: 'Are you taking any medication for neuropathy (e.g., gabapentin, duloxetine)?', type: 'choice', options: [
+              {label: 'Gabapentin', value: 'gabapentin'},
+              {label: 'Duloxetine (Cymbalta)', value: 'duloxetine'},
+              {label: 'Pregabalin (Lyrica)', value: 'pregabalin'},
+              {label: 'Other', value: 'other'},
+              {label: 'None', value: 'none'}
+          ]},
+          { id: 'meds_other', text: 'What medication are you taking?', type: 'text', condition: (a) => a['meds'] === 'other' },
+          { id: 'meds_helping', text: 'Is the medication helping?', type: 'yes_no', condition: (a) => a['meds'] && a['meds'] !== 'none' }
       ],
       evaluateFollowUp: (answers) => {
-          if (answers['balance'] === true) return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Falls/unsteadiness present. Flag for safety/provider.' };
-          return { action: 'continue' };
+          if (answers['meds'] !== 'none' && answers['meds_helping'] === false) {
+              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'Neuropathy medications not helping - may need adjustment.' };
+          }
+          return { action: 'stop', triageLevel: 'none', triageMessage: 'Neuropathy reported. Monitor and discuss with care team.' };
       }
   }
 };

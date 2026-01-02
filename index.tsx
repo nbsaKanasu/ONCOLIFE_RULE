@@ -246,6 +246,90 @@ const ScreenReaderAnnounce: React.FC<{ message: string; assertive?: boolean }> =
   </div>
 );
 
+// --- Emergency Quick Access Icons (Header) ---
+const EmergencyQuickAccess: React.FC<{ onEmergencyClick: () => void; onCareTeamClick: () => void }> = ({ 
+  onEmergencyClick, 
+  onCareTeamClick 
+}) => (
+  <div className="flex items-center space-x-1 mr-2 border-r border-slate-200 pr-2">
+    <button
+      onClick={onEmergencyClick}
+      className="flex items-center space-x-1 px-2 py-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-700 transition-colors text-xs font-medium"
+      title="Call 911 - Emergency"
+      aria-label="Emergency: Call 911"
+    >
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+      </svg>
+      <span className="hidden sm:inline">911</span>
+    </button>
+    <button
+      onClick={onCareTeamClick}
+      className="flex items-center space-x-1 px-2 py-1.5 rounded-md bg-teal-50 hover:bg-teal-100 text-teal-700 transition-colors text-xs font-medium"
+      title="Contact Care Team"
+      aria-label="Contact your care team"
+    >
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+      </svg>
+      <span className="hidden sm:inline">Care Team</span>
+    </button>
+  </div>
+);
+
+// --- Severe Symptom Check Dialog ---
+const SevereCheckDialog: React.FC<{
+  isOpen: boolean;
+  onContinue: () => void;
+  onEmergency: () => void;
+}> = ({ isOpen, onContinue, onEmergency }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="severe-check-title">
+      <div className="dialog-box max-w-md" onClick={e => e.stopPropagation()}>
+        {/* Ruby Avatar */}
+        <div className="flex items-center justify-center mb-4">
+          <div className="ruby-avatar w-14 h-14 text-xl">R</div>
+        </div>
+        
+        <h3 id="severe-check-title" className="text-lg font-semibold text-slate-800 mb-2 text-center">
+          Ruby wants to check in...
+        </h3>
+        
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+          <p className="text-slate-700 text-sm text-center">
+            "You've mentioned some concerning symptoms.<br />
+            <strong>Are you feeling safe right now?</strong><br />
+            Any trouble breathing, chest pain, or feeling faint?"
+          </p>
+        </div>
+        
+        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
+          <button
+            onClick={onContinue}
+            className="flex-1 py-3 px-4 rounded-xl border-2 border-teal-500 font-medium text-teal-700 hover:bg-teal-50 transition-colors text-sm flex items-center justify-center"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            I'm okay, continue
+          </button>
+          <button
+            onClick={onEmergency}
+            className="flex-1 py-3 px-4 rounded-xl bg-red-600 hover:bg-red-700 font-medium text-white transition-colors text-sm flex items-center justify-center"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            I need emergency help
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- Components ---
 
 interface Message {
@@ -910,6 +994,15 @@ function App() {
   const [showEmergencyConfirm, setShowEmergencyConfirm] = useState(false);
   const [announcement, setAnnouncement] = useState('');
   
+  // Smart Severe Check state
+  const [showSevereCheck, setShowSevereCheck] = useState(false);
+  const [pendingSevereAnswer, setPendingSevereAnswer] = useState<any>(null);
+  const [severeCheckShownThisSession, setSevereCheckShownThisSession] = useState(false);
+  
+  // Emergency quick access dialog
+  const [showEmergencyDialog, setShowEmergencyDialog] = useState(false);
+  const [showCareTeamDialog, setShowCareTeamDialog] = useState(false);
+  
   // Emergency prescreen state
   const [prescreenChecks, setPrescreenChecks] = useState<string[]>([]);
 
@@ -934,6 +1027,7 @@ function App() {
   const confirmExit = () => {
     setShowExitConfirm(false);
     setPrescreenChecks([]);
+    setSevereCheckShownThisSession(false);
     resetToPrescreen();
   };
   
@@ -946,6 +1040,53 @@ function App() {
     setTimeout(() => {
         if(document.body.contains(toast)) document.body.removeChild(toast);
     }, 2000);
+  };
+  
+  // --- Emergency Quick Access Handlers ---
+  const handleEmergencyHeaderClick = () => {
+    setShowEmergencyDialog(true);
+  };
+  
+  const handleCareTeamHeaderClick = () => {
+    setShowCareTeamDialog(true);
+  };
+  
+  // --- Smart Severe Check Handlers ---
+  // Check if answer contains "sev" (severe) - should trigger safety check
+  const isSevereAnswer = (answer: any): boolean => {
+    if (typeof answer === 'string') {
+      return answer === 'sev' || answer.toLowerCase() === 'severe';
+    }
+    if (Array.isArray(answer)) {
+      return answer.some(a => a === 'sev' || (typeof a === 'string' && a.toLowerCase() === 'severe'));
+    }
+    return false;
+  };
+  
+  const handleAnswerWithSevereCheck = (answer: any) => {
+    // Only show severe check once per session and only when "sev" is selected
+    if (isSevereAnswer(answer) && !severeCheckShownThisSession) {
+      setPendingSevereAnswer(answer);
+      setShowSevereCheck(true);
+      setSevereCheckShownThisSession(true);
+    } else {
+      handleAnswer(answer);
+    }
+  };
+  
+  const handleSevereCheckContinue = () => {
+    setShowSevereCheck(false);
+    if (pendingSevereAnswer !== null) {
+      handleAnswer(pendingSevereAnswer);
+      setPendingSevereAnswer(null);
+    }
+  };
+  
+  const handleSevereCheckEmergency = () => {
+    setShowSevereCheck(false);
+    setPendingSevereAnswer(null);
+    // Navigate to 911 immediately
+    window.location.href = 'tel:911';
   };
   
   // Save to session history when completing
@@ -997,7 +1138,7 @@ function App() {
   };
 
   const handleMultiSelectSubmit = () => {
-    handleAnswer(multiSelect);
+    handleAnswerWithSevereCheck(multiSelect);
     setMultiSelect([]);
   };
 
@@ -1070,6 +1211,12 @@ function App() {
                 </div>
             </div>
             <div className="flex items-center space-x-2">
+                {/* Emergency Quick Access Icons */}
+                <EmergencyQuickAccess 
+                  onEmergencyClick={handleEmergencyHeaderClick}
+                  onCareTeamClick={handleCareTeamHeaderClick}
+                />
+                
                 {/* Font Size Selector */}
                 <div className="hidden sm:block">
                   <FontSizeSelector fontScale={fontScale} setFontScale={setFontScale} />
@@ -1133,6 +1280,44 @@ function App() {
           onConfirm={confirmExit}
           onCancel={() => setShowExitConfirm(false)}
           variant="warning"
+        />
+        
+        {/* Smart Severe Check Dialog */}
+        <SevereCheckDialog
+          isOpen={showSevereCheck}
+          onContinue={handleSevereCheckContinue}
+          onEmergency={handleSevereCheckEmergency}
+        />
+        
+        {/* Emergency Quick Access Dialog */}
+        <ConfirmDialog
+          isOpen={showEmergencyDialog}
+          title="Emergency Help"
+          message="You are about to call 911. This should only be used for life-threatening emergencies. Are you sure you want to proceed?"
+          confirmText="Call 911"
+          cancelText="Cancel"
+          onConfirm={() => {
+            setShowEmergencyDialog(false);
+            window.location.href = 'tel:911';
+          }}
+          onCancel={() => setShowEmergencyDialog(false)}
+          variant="danger"
+        />
+        
+        {/* Care Team Contact Dialog */}
+        <ConfirmDialog
+          isOpen={showCareTeamDialog}
+          title="Contact Care Team"
+          message="Would you like to contact your care team? You can call them directly or send a message with your current symptoms."
+          confirmText="Call Care Team"
+          cancelText="Cancel"
+          onConfirm={() => {
+            setShowCareTeamDialog(false);
+            // Placeholder - would be configured with actual care team number
+            window.location.href = 'tel:+1-800-000-0000';
+          }}
+          onCancel={() => setShowCareTeamDialog(false)}
+          variant="info"
         />
         
         {/* === EMERGENCY PRESCREEN === */}
@@ -1719,7 +1904,7 @@ function App() {
                     {currentQuestion.options?.map(opt => (
                         <button 
                         key={opt.value.toString()} 
-                        onClick={() => handleAnswer(opt.value)}
+                        onClick={() => handleAnswerWithSevereCheck(opt.value)}
                         className="p-4 rounded-xl border border-stone-200 text-left font-medium text-stone-700 hover:bg-teal-50 hover:border-teal-200 hover:text-teal-800 transition-all active:scale-98 whitespace-normal"
                         role="radio"
                         aria-checked="false"

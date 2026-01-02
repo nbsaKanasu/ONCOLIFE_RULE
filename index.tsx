@@ -389,6 +389,122 @@ const PatientAvatar: React.FC<{ size?: 'sm' | 'md'; className?: string }> = ({ s
   );
 };
 
+// --- Quick Reply Pills Component (Inline in Chat) ---
+const QuickReplyPills: React.FC<{
+  question: Question;
+  onSelect: (value: any) => void;
+  multiSelect?: string[];
+  onToggleMulti?: (value: string) => void;
+  onSubmitMulti?: () => void;
+}> = ({ question, onSelect, multiSelect = [], onToggleMulti, onSubmitMulti }) => {
+  
+  // Yes/No Questions
+  if (question.type === 'yes_no') {
+    return (
+      <div className="flex w-full justify-start mb-4 animate-fade-in">
+        <div className="w-10 mr-3 shrink-0" /> {/* Spacer for avatar alignment */}
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Yes or No">
+          <button
+            onClick={() => onSelect(true)}
+            className="quick-pill quick-pill-primary"
+            aria-label="Answer Yes"
+          >
+            Yes
+          </button>
+          <button
+            onClick={() => onSelect(false)}
+            className="quick-pill quick-pill-secondary"
+            aria-label="Answer No"
+          >
+            No
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  // Choice Questions (single select)
+  if (question.type === 'choice' && question.options) {
+    const isScrollable = question.options.length > 4;
+    return (
+      <div className="flex w-full justify-start mb-4 animate-fade-in">
+        <div className="w-10 mr-3 shrink-0" /> {/* Spacer for avatar alignment */}
+        <div 
+          className={`${isScrollable ? 'flex overflow-x-auto pb-2 gap-2 max-w-[85%] scrollbar-hide' : 'flex flex-wrap gap-2 max-w-[85%]'}`}
+          role="radiogroup" 
+          aria-label="Select one option"
+        >
+          {question.options.map(opt => (
+            <button
+              key={opt.value.toString()}
+              onClick={() => onSelect(opt.value)}
+              className="quick-pill quick-pill-choice whitespace-nowrap"
+              role="radio"
+              aria-checked="false"
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  
+  // Multiselect Questions
+  if (question.type === 'multiselect' && question.options && onToggleMulti && onSubmitMulti) {
+    const isScrollable = question.options.length > 5;
+    return (
+      <div className="flex flex-col w-full mb-4 animate-fade-in">
+        <div className="flex w-full justify-start">
+          <div className="w-10 mr-3 shrink-0" /> {/* Spacer for avatar alignment */}
+          <div className="max-w-[85%]">
+            <p className="text-xs text-slate-500 mb-2">Select all that apply:</p>
+            <div 
+              className={`${isScrollable ? 'flex overflow-x-auto pb-2 gap-2 scrollbar-hide' : 'flex flex-wrap gap-2'}`}
+              role="group" 
+              aria-label="Select all that apply"
+            >
+              {question.options.map(opt => {
+                const isSelected = multiSelect.includes(opt.value as string);
+                return (
+                  <button
+                    key={opt.value.toString()}
+                    onClick={() => onToggleMulti(opt.value as string)}
+                    className={`quick-pill whitespace-nowrap ${
+                      isSelected 
+                        ? 'quick-pill-selected' 
+                        : 'quick-pill-choice'
+                    }`}
+                    role="checkbox"
+                    aria-checked={isSelected}
+                  >
+                    {isSelected && <span className="mr-1">✓</span>}
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            {/* Submit button for multiselect */}
+            <button
+              onClick={onSubmitMulti}
+              disabled={multiSelect.length === 0}
+              className={`mt-3 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                multiSelect.length > 0
+                  ? 'bg-teal-600 text-white hover:bg-teal-700 shadow-sm'
+                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              {multiSelect.length === 0 ? 'Select options above' : `Continue (${multiSelect.length} selected)`}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  return null;
+};
+
 // --- Components ---
 
 interface Message {
@@ -1725,6 +1841,17 @@ function App() {
                       <ChatBubble key={msg.id} message={msg} />
                   ))}
                   {isTyping && <TypingIndicator />}
+                  
+                  {/* Quick Reply Pills - Inline in chat for choice/multiselect/yes_no */}
+                  {!isTyping && currentQuestion && (currentQuestion.type === 'yes_no' || currentQuestion.type === 'choice' || currentQuestion.type === 'multiselect') && stage !== 'complete' && (
+                    <QuickReplyPills
+                      question={currentQuestion}
+                      onSelect={currentQuestion.type === 'choice' ? handleAnswerWithSevereCheck : handleAnswer}
+                      multiSelect={multiSelect}
+                      onToggleMulti={toggleMultiSelect}
+                      onSubmitMulti={handleMultiSelectSubmit}
+                    />
+                  )}
                 </div>
                 
                 {stage === 'complete' && (
@@ -1954,103 +2081,14 @@ function App() {
         )}
       </main>
 
-      {stage !== 'selection' && stage !== 'complete' && (
+      {/* Sticky Input Bar - Only for text/number inputs */}
+      {stage !== 'selection' && stage !== 'complete' && stage !== 'emergency_prescreen' && currentQuestion && (currentQuestion.type === 'text' || currentQuestion.type === 'number') && (
         <footer 
-          className="bg-white border-t border-slate-200 p-4 pb-8 w-full shrink-0 z-30 max-h-[55dvh] overflow-y-auto"
+          className="bg-white border-t border-slate-200 p-4 pb-6 w-full shrink-0 z-30"
           role="region"
           aria-label="Answer input area"
         >
-            <div className="max-w-2xl mx-auto animate-fade-in">
-                {currentQuestion?.type === 'yes_no' && (
-                <div className="grid grid-cols-5 gap-3" role="group" aria-label="Yes or No answer options">
-                    <button 
-                      onClick={() => handleAnswer(false)} 
-                      className="col-span-2 p-3 rounded-xl border border-stone-200 font-medium text-stone-600 hover:border-stone-300 hover:bg-stone-50 active:scale-98 transition-all"
-                      aria-label="Answer No"
-                    >
-                      No
-                    </button>
-                    <button 
-                      onClick={() => handleAnswer(true)} 
-                      className="col-span-3 p-3.5 rounded-xl bg-gradient-to-r from-teal-600 to-teal-700 text-white font-semibold shadow-md hover:shadow-lg active:scale-98 transition-all"
-                      aria-label="Answer Yes"
-                    >
-                      Yes
-                    </button>
-                </div>
-                )}
-
-                {currentQuestion?.type === 'choice' && (
-                <div className="grid grid-cols-1 gap-3" role="radiogroup" aria-label="Select one option">
-                    {currentQuestion.options?.map(opt => (
-                        <button 
-                        key={opt.value.toString()} 
-                        onClick={() => handleAnswerWithSevereCheck(opt.value)}
-                        className="p-4 rounded-xl border border-stone-200 text-left font-medium text-stone-700 hover:bg-teal-50 hover:border-teal-200 hover:text-teal-800 transition-all active:scale-98 whitespace-normal"
-                        role="radio"
-                        aria-checked="false"
-                        aria-label={`Select ${opt.label}`}
-                        >
-                        {opt.label}
-                        </button>
-                    ))}
-                </div>
-                )}
-
-                {currentQuestion?.type === 'multiselect' && (
-                <div className="space-y-3" role="group" aria-label="Select all that apply">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs text-slate-500 font-medium" id="multiselect-hint">Select all that apply</p>
-                      {/* Select All / Clear All batch actions */}
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setMultiSelect(currentQuestion.options?.map(o => o.value as string) || [])}
-                          className="text-xs text-teal-600 hover:text-teal-800 font-semibold px-2 py-1 rounded hover:bg-teal-50 transition-colors"
-                          type="button"
-                        >
-                          Select All
-                        </button>
-                        <span className="text-slate-300">|</span>
-                        <button
-                          onClick={() => setMultiSelect([])}
-                          className="text-xs text-slate-500 hover:text-slate-700 font-semibold px-2 py-1 rounded hover:bg-slate-100 transition-colors"
-                          type="button"
-                        >
-                          Clear All
-                        </button>
-                      </div>
-                    </div>
-                    {currentQuestion.options?.map(opt => (
-                    <button
-                        key={opt.value.toString()}
-                        onClick={() => toggleMultiSelect(opt.value as string)}
-                        className={`w-full p-3 rounded-2xl border text-left font-medium transition-all flex justify-between items-center shadow-sm active:scale-[0.99] whitespace-normal ${
-                        multiSelect.includes(opt.value as string) 
-                            ? 'bg-teal-600 border-teal-600 text-white ring-2 ring-teal-300 ring-offset-1' 
-                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                        }`}
-                        role="checkbox"
-                        aria-checked={multiSelect.includes(opt.value as string)}
-                        aria-describedby="multiselect-hint"
-                        aria-label={`${opt.label}${multiSelect.includes(opt.value as string) ? ' (selected)' : ''}`}
-                    >
-                        <span className="flex-1 pr-2">{opt.label}</span>
-                        {multiSelect.includes(opt.value as string) && (
-                            <span className="bg-white text-teal-600 rounded-full w-6 h-6 flex shrink-0 items-center justify-center font-bold text-sm" aria-hidden="true">✓</span>
-                        )}
-                    </button>
-                    ))}
-                    <button 
-                    onClick={handleMultiSelectSubmit}
-                    className="w-full p-4 bg-slate-900 text-white rounded-2xl font-bold text-lg shadow-lg hover:bg-slate-800 transition-all mt-2 active:scale-95 hover:shadow-xl"
-                    aria-label={`Confirm selection of ${multiSelect.length} item${multiSelect.length !== 1 ? 's' : ''}`}
-                    disabled={multiSelect.length === 0}
-                    >
-                    {multiSelect.length === 0 ? 'Select at least one option' : `Confirm Selection (${multiSelect.length})`}
-                    </button>
-                </div>
-                )}
-
+            <div className="max-w-2xl mx-auto">
                 {/* Temperature input - special formatting */}
                 {currentQuestion?.type === 'number' && currentQuestion.id.includes('temp') && (
                 <div className="flex space-x-3">

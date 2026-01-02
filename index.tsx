@@ -89,7 +89,12 @@ const useSessionHistory = () => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  return { history, addToHistory, getLastAssessmentDate };
+  const clearHistory = () => {
+    setHistory([]);
+    localStorage.removeItem('oncolife-session-history');
+  };
+
+  return { history, addToHistory, getLastAssessmentDate, clearHistory };
 };
 
 // --- Professional Medical SVG Icons ---
@@ -898,7 +903,7 @@ function App() {
   // New UX Features
   const { fontScale, setFontScale } = useFontScale();
   const { isDark, toggleDark } = useDarkMode();
-  const { history: sessionHistory, addToHistory, getLastAssessmentDate } = useSessionHistory();
+  const { history: sessionHistory, addToHistory, getLastAssessmentDate, clearHistory } = useSessionHistory();
   const [activeFilter, setActiveFilter] = useState<FilterCategory>('all');
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [emergencyCollapsed, setEmergencyCollapsed] = useState(true);
@@ -1326,10 +1331,19 @@ function App() {
                 {recentSymptoms.length > 0 && activeFilter === 'all' && !searchQuery && (
                   <div className="bg-slate-50 border-b border-slate-200 py-3">
                     <div className="max-w-5xl mx-auto px-4">
-                      <div className="flex items-center mb-2">
-                        <span className="text-slate-500 mr-2"><MedicalIcons.Clock /></span>
-                        <span className="text-xs font-medium text-slate-600">Recent Assessments</span>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center">
+                          <span className="text-slate-500 mr-2"><MedicalIcons.Clock /></span>
+                          <span className="text-xs font-medium text-slate-600">Recent Assessments</span>
                         </div>
+                        <button 
+                          onClick={clearHistory}
+                          className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                          title="Clear history"
+                        >
+                          Clear
+                        </button>
+                      </div>
                       <div className="flex gap-2 overflow-x-auto pb-1">
                         {recentSymptoms.map(s => (
                           <button
@@ -1340,8 +1354,8 @@ function App() {
                             {s.name}
                           </button>
                         ))}
+                      </div>
                     </div>
-                </div>
                   </div>
                 )}
 
@@ -1367,15 +1381,8 @@ function App() {
                              >
                                General Symptoms
                              </button>
-                             <button 
-                               onClick={() => { setEmergencyCollapsed(false); setTimeout(() => scrollToSection(emergencyRef), 100); }} 
-                               className="shrink-0 px-3 py-1.5 rounded-md bg-red-50 text-red-700 font-medium text-xs border border-red-200 hover:bg-red-100 transition-colors focus-emergency"
-                               aria-label="Jump to urgent symptoms section"
-                             >
-                               Urgent Symptoms
-                             </button>
-                            </div>
-                            </div>
+                        </div>
+                    </div>
                 </nav>
 
                 {/* Cards Container */}
@@ -1419,35 +1426,7 @@ function App() {
                         </section>
                     )}
 
-                    {/* Urgent Symptoms - Collapsible */}
-                    {(URGENT_SYMPTOMS.length > 0 || searchQuery === '') && (
-                        <section ref={emergencyRef} className="scroll-mt-32" aria-labelledby="emergency-heading">
-                            <button 
-                              onClick={() => setEmergencyCollapsed(!emergencyCollapsed)}
-                              className="w-full flex items-center justify-between mb-4 pb-2 border-b border-red-200 hover:bg-red-50 rounded-lg p-2 -ml-2 transition-colors"
-                              aria-expanded={!emergencyCollapsed}
-                            >
-                                <div className="flex items-center">
-                                  <span className="bg-red-50 text-red-600 p-2 rounded-lg mr-3" aria-hidden="true"><MedicalIcons.AlertTriangle /></span>
-                                  <div className="text-left">
-                                    <h3 id="emergency-heading" className="text-sm font-semibold text-red-700">Urgent Symptoms</h3>
-                                    <p className="text-xs text-red-500">Requires immediate attention — {emergencyCollapsed ? 'tap to expand' : 'tap to collapse'}</p>
-                        </div>
-                                </div>
-                                <span className={`text-red-400 transition-transform ${emergencyCollapsed ? '' : 'rotate-180'}`}>
-                                  <MedicalIcons.ChevronDown />
-                                </span>
-                            </button>
-                            <div className={`collapsible-content ${emergencyCollapsed ? '' : 'expanded'}`}>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" role="list" aria-label="Urgent symptoms list">
-                                  {URGENT_SYMPTOMS.map(s => (
-                                      <SymptomCard key={s.id} symptom={s} onClick={handleCardClick} variant="emergency" result={visitedSymptoms.includes(s.id) ? symptomResults[s.id] : undefined} isMultiSelectMode={isMultiSelectMode} isSelected={selectedSymptoms.includes(s.id)} />
-                                  ))}
-                                  {URGENT_SYMPTOMS.length === 0 && <p className="text-slate-400 text-sm col-span-full text-center py-6" role="status">No urgent symptoms match your filter.</p>}
-                              </div>
-                            </div>
-                        </section>
-                    )}
+                    {/* Note: Urgent symptoms removed - now handled in Emergency Prescreen */}
                     
                     <div className="text-center border-t border-slate-200 pt-8 pb-6">
                         <p className="text-xs text-slate-500 mb-1">OncoLife Clinical Assessment System v3.0</p>
@@ -1603,10 +1582,20 @@ function App() {
                             </div>
                         )}
 
-                        {visitedSymptoms.length > 0 && (
+                        {/* Session Summary - includes prescreen if emergency triggered */}
+                        {(visitedSymptoms.length > 0 || emergencyTriggered) && (
                             <div className="mt-6 bg-white rounded-lg border border-slate-200 p-4">
                                 <h3 className="text-xs font-medium text-slate-500 mb-3 pb-2 border-b border-slate-100">Session Summary</h3>
                                 <div className="space-y-3">
+                                    {/* Show emergency prescreen if triggered */}
+                                    {emergencyTriggered && emergencyReason && (
+                                      <div className="flex items-center justify-between bg-red-50 p-2 rounded-lg border border-red-200">
+                                        <span className="text-red-800 font-medium text-sm">Emergency Prescreen: {emergencyReason}</span>
+                                        <span className="text-xs font-medium px-2 py-1 rounded badge-emergency">
+                                          Emergency
+                                        </span>
+                                      </div>
+                                    )}
                                     {visitedSymptoms.map(sId => {
                                         const sDef = SYMPTOMS[sId];
                                         const res = symptomResults[sId] || 'none';

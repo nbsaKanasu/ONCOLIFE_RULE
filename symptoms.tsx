@@ -364,28 +364,32 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       hidden: true,
       icon: Icons.Port,
       screeningQuestions: [
-          { id: 'site_signs', text: 'Is there any new redness, swelling, or drainage at your port or IV site?', type: 'yes_no' },
-          { id: 'site_pain', text: 'Is the site painful to the touch or feeling hot?', type: 'yes_no' },
-          { id: 'port_temp', text: 'What is your temperature? (Number only)', type: 'number' }
+          { id: 'redness', text: 'Is there any new redness at your port or IV site?', type: 'yes_no' },
+          { id: 'drainage', text: 'Is there any drainage from the site?', type: 'yes_no' },
+          { id: 'chills', text: 'Are you experiencing chills?', type: 'yes_no' },
+          { id: 'port_temp', text: 'What is your temperature?', type: 'number' }
       ],
       evaluateScreening: (answers) => {
           const t = parseFloat(answers['port_temp']);
-          const hasFever = !isNaN(t) && t > 100.3;
-          const hasSigns = answers['site_signs'] === true || answers['site_pain'] === true;
+          const hasFever = !isNaN(t) && t >= 100.3;
+          const hasRedness = answers['redness'] === true;
+          const hasDrainage = answers['drainage'] === true;
+          const hasChills = answers['chills'] === true;
           
-          // If port/IV site issue COMBINED with Fever → URGENT escalation
-          if (hasSigns && hasFever) {
-              return { action: 'stop', triageLevel: 'call_911', triageMessage: 'Port/IV site infection signs WITH Fever - URGENT. Contact care team immediately or go to ER.' };
-          }
-          
-          // Alert: YES to either site question
-          if (hasSigns) {
-              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'Port/IV site shows signs of possible infection (redness, swelling, drainage, pain, or heat).' };
-          }
-          
-          // Check for fever alone - branch to Fever module
-          if (hasFever) {
-              return { action: 'branch', branchToSymptomId: 'FEV-202' };
+          // Alert: Red/Drain/Chills/Temp≥100.3 → Notify
+          if (hasRedness || hasDrainage || hasChills || hasFever) {
+              let reasons = [];
+              if (hasRedness) reasons.push('Redness');
+              if (hasDrainage) reasons.push('Drainage');
+              if (hasChills) reasons.push('Chills');
+              if (hasFever) reasons.push(`Temp ${t}°F`);
+              
+              // If fever present, potentially urgent
+              if (hasFever && (hasRedness || hasDrainage || hasChills)) {
+                  return { action: 'stop', triageLevel: 'call_911', triageMessage: `Port/IV site infection signs WITH fever - URGENT: ${reasons.join(', ')}.` };
+              }
+              
+              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: `Port/IV site concern: ${reasons.join(', ')}.` };
           }
           
           return { action: 'stop', triageLevel: 'none', triageMessage: 'Port/IV site checked - no concerning signs.' };
@@ -773,7 +777,17 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
               {label: 'Mild', value: 'mild'}, 
               {label: 'Moderate', value: 'mod'}, 
               {label: 'Severe', value: 'sev'}
-          ]}
+          ]},
+          { id: 'meds', text: 'What medications are you taking for constipation?', type: 'choice', options: [
+              {label: 'Miralax 17g once daily', value: 'miralax_qd'},
+              {label: 'Miralax 17g twice daily', value: 'miralax_bid'},
+              {label: 'Senna 8.6mg', value: 'senna'},
+              {label: 'Bisacodyl (Dulcolax)', value: 'bisacodyl'},
+              {label: 'Docusate (Colace)', value: 'docusate'},
+              {label: 'Other', value: 'other'},
+              {label: 'None', value: 'none'}
+          ]},
+          { id: 'meds_freq', text: 'How often are you taking it?', type: 'text', condition: (a) => a['meds'] === 'other' }
       ],
       evaluateScreening: (answers) => {
           const daysBM = parseFloat(answers['days_bm']);
@@ -785,7 +799,16 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
               if (!isNaN(daysBM) && daysBM > 2) reasons.push(`No BM for ${daysBM} days`);
               if (!isNaN(daysGas) && daysGas > 2) reasons.push(`No gas for ${daysGas} days`);
               if (answers['discomfort'] === 'sev') reasons.push('Severe discomfort');
-              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: `Constipation alert: ${reasons.join(', ')}.` };
+              
+              // Add medication info to message
+              const med = answers['meds'];
+              if (med && med !== 'none') {
+                  reasons.push(`Currently taking: ${med}${answers['meds_freq'] ? ' - ' + answers['meds_freq'] : ''}`);
+              } else {
+                  reasons.push('Not taking constipation medication');
+              }
+              
+              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: `Constipation alert: ${reasons.join('. ')}.` };
           }
           return { action: 'stop', triageLevel: 'none', triageMessage: 'Mild constipation - continue monitoring.' };
       }
@@ -797,25 +820,46 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       icon: Icons.Sleep,
       screeningQuestions: [
           { id: 'interfere', text: 'Does your fatigue interfere with performing daily tasks?', type: 'yes_no' },
-          { id: 'severity', text: 'Rate your fatigue', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}] },
-          { id: 'days', text: 'How many continuous days have you had this level?', type: 'number' },
-          { id: 'trend', text: 'Is it getting worse, staying the same, or improving?', type: 'choice', options: [{label: 'Worse', value: 'worse'}, {label: 'Same', value: 'same'}, {label: 'Improving', value: 'better'}]}
+          { id: 'severity', text: 'Rate your fatigue:', type: 'choice', options: [
+              {label: 'Mild', value: 'mild'}, 
+              {label: 'Moderate', value: 'mod'}, 
+              {label: 'Severe', value: 'sev'}
+          ]},
+          // Only ask days/trend if Moderate or Severe
+          { id: 'days', text: 'How many continuous days have you had this level of fatigue?', type: 'number', 
+            condition: (a) => a['severity'] === 'mod' || a['severity'] === 'sev' 
+          },
+          { id: 'trend', text: 'Is it getting worse, staying the same, or improving?', type: 'choice', 
+            options: [{label: 'Worse', value: 'worse'}, {label: 'Same', value: 'same'}, {label: 'Improving', value: 'better'}],
+            condition: (a) => a['severity'] === 'mod' || a['severity'] === 'sev'
+          }
       ],
       evaluateScreening: (answers) => {
-          if (answers['interfere'] === true || answers['severity'] === 'sev') {
-              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Interference to Daily Tasks OR Rating Severe.' };
+          // Alert: Interfere Y OR Sev OR Mod≥3 worse/same → Notify
+          if (answers['interfere'] === true) {
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Fatigue interferes with daily tasks.' };
           }
-          if (answers['severity'] === 'mod' && parseFloat(answers['days']) >= 3 && answers['trend'] !== 'better') {
-              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Moderate Fatigue >= 3 days.' };
+          if (answers['severity'] === 'sev') {
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Severe fatigue reported.' };
+          }
+          if (answers['severity'] === 'mod') {
+              const days = parseFloat(answers['days']);
+              if (!isNaN(days) && days >= 3 && answers['trend'] !== 'better') {
+                  return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: `Moderate fatigue for ${days} days (${answers['trend']}).` };
+              }
           }
           return { action: 'continue' };
       },
       followUpQuestions: [
-          { id: 'sleep', text: 'How many hours are you sleeping in bed during the day?', type: 'number' },
-          { id: 'worsening_day', text: 'Is the fatigue worsening compared to yesterday?', type: 'yes_no' },
-          { id: 'adl_self', text: 'Has the fatigue affected your ability to bathe, dress and feed yourself without help?', type: 'yes_no' }
+          { id: 'sleep_hrs', text: 'How many hours are you sleeping in bed during the day?', type: 'number' },
+          { id: 'worse_yesterday', text: 'Is the fatigue worsening compared to yesterday?', type: 'yes_no' },
+          { id: 'adl_self', text: 'Has the fatigue affected your ability to bathe, dress, and feed yourself without help?', type: 'yes_no' }
       ],
       evaluateFollowUp: (answers) => {
+          // ADL impact is concerning
+          if (answers['adl_self'] === true) {
+              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'Fatigue affects ability to perform self-care (bathing, dressing, feeding).' };
+          }
           return { action: 'continue' };
       }
   },

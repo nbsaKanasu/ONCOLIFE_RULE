@@ -496,12 +496,10 @@ const FontSizeSelector: React.FC<{ fontScale: FontScale; setFontScale: (scale: F
 // --- Logic Hook ---
 
 const useSymptomChecker = () => {
-  const [history, setHistory] = useState<Message[]>([
-    { id: 'welcome', sender: 'bot', content: "Hi, I'm Ruby! 💎 I'm here to help check on how you're feeling today. Let's go through your symptoms together — I'll ask a few questions to make sure your care team has all the information they need. If this is an emergency, please call 911 right away." }
-  ]);
+  const [history, setHistory] = useState<Message[]>([]);
   const [currentSymptomId, setCurrentSymptomId] = useState<string | null>(null);
   const [currentSymptomMsgId, setCurrentSymptomMsgId] = useState<string | null>(null);
-  const [stage, setStage] = useState<'selection' | 'screening' | 'followup' | 'complete'>('selection');
+  const [stage, setStage] = useState<'emergency_prescreen' | 'selection' | 'screening' | 'followup' | 'complete'>('emergency_prescreen');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   
   // Local answers for current module
@@ -517,6 +515,11 @@ const useSymptomChecker = () => {
   const [triageReasons, setTriageReasons] = useState<string[]>([]);
   
   const [symptomResults, setSymptomResults] = useState<Record<string, ActionLevel>>({});
+  
+  // Emergency prescreen state
+  const [prescreenComplete, setPrescreenComplete] = useState(false);
+  const [emergencyTriggered, setEmergencyTriggered] = useState(false);
+  const [emergencyReason, setEmergencyReason] = useState<string>('');
 
   const addMessage = (text: string | React.ReactNode, sender: 'bot' | 'user', isAlert = false, isSystem = false, symptomId?: string, symptomStatus?: SymptomStatus) => {
     const id = Date.now().toString();
@@ -803,6 +806,47 @@ const useSymptomChecker = () => {
       addMessage("Please select another symptom from the dashboard.", 'bot');
   };
 
+  // Emergency prescreen handlers
+  const handlePrescreenComplete = (hasEmergency: boolean, selectedEmergencies: string[]) => {
+    setPrescreenComplete(true);
+    if (hasEmergency && selectedEmergencies.length > 0) {
+      setEmergencyTriggered(true);
+      // Map the emergency symptoms to readable names
+      const emergencyLabels: Record<string, string> = {
+        'breathing': 'Trouble breathing or shortness of breath',
+        'chest_pain': 'Chest pain or pressure',
+        'bleeding': 'Severe bleeding that won\'t stop',
+        'fainting': 'Fainting or feeling like you\'ll faint',
+        'confusion': 'Confusion or trouble speaking',
+        'stroke': 'Signs of stroke (face drooping, arm weakness)'
+      };
+      const reasons = selectedEmergencies.map(e => emergencyLabels[e] || e).join(', ');
+      setEmergencyReason(reasons);
+      setHighestSeverity('call_911');
+      setTriageReasons([`Patient reports urgent symptoms: ${reasons}`]);
+      setStage('complete');
+    } else {
+      setStage('selection');
+      addMessage("Hi, I'm Ruby! 💎 Great — let's check on how you're feeling. Select a symptom below and I'll guide you through some questions.", 'bot');
+    }
+  };
+
+  const resetToPrescreen = () => {
+    setHistory([]);
+    setStage('emergency_prescreen');
+    setPrescreenComplete(false);
+    setEmergencyTriggered(false);
+    setEmergencyReason('');
+    setHighestSeverity('none');
+    setTriageReasons([]);
+    setCurrentSymptomId(null);
+    setAnswers({});
+    setGlobalAnswers({});
+    setVisitedSymptoms([]);
+    setSymptomQueue([]);
+    setSymptomResults({});
+  };
+
   return {
     history,
     stage,
@@ -820,7 +864,12 @@ const useSymptomChecker = () => {
     triageReasons,
     startSession,
     visitedSymptoms,
-    symptomResults
+    symptomResults,
+    // Emergency prescreen
+    handlePrescreenComplete,
+    resetToPrescreen,
+    emergencyTriggered,
+    emergencyReason
   };
 };
 
@@ -838,7 +887,7 @@ const FILTER_CATEGORIES: Record<FilterCategory, string[]> = {
 };
 
 function App() {
-  const { history, stage, startSession, handleAnswer, isTyping, currentQuestion, reset, continueSession, currentSymptomId, highestSeverity, triageReasons, visitedSymptoms, symptomResults } = useSymptomChecker();
+  const { history, stage, startSession, handleAnswer, isTyping, currentQuestion, reset, continueSession, currentSymptomId, highestSeverity, triageReasons, visitedSymptoms, symptomResults, handlePrescreenComplete, resetToPrescreen, emergencyTriggered, emergencyReason } = useSymptomChecker();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [textInput, setTextInput] = useState('');
   const [multiSelect, setMultiSelect] = useState<string[]>([]);
@@ -852,9 +901,12 @@ function App() {
   const { history: sessionHistory, addToHistory, getLastAssessmentDate } = useSessionHistory();
   const [activeFilter, setActiveFilter] = useState<FilterCategory>('all');
   const [showExitConfirm, setShowExitConfirm] = useState(false);
-  const [emergencyCollapsed, setEmergencyCollapsed] = useState(true); // Start collapsed to reduce anxiety
+  const [emergencyCollapsed, setEmergencyCollapsed] = useState(true);
   const [showEmergencyConfirm, setShowEmergencyConfirm] = useState(false);
   const [announcement, setAnnouncement] = useState('');
+  
+  // Emergency prescreen state
+  const [prescreenChecks, setPrescreenChecks] = useState<string[]>([]);
 
   const emergencyRef = useRef<HTMLDivElement>(null);
   const commonRef = useRef<HTMLDivElement>(null);
@@ -876,7 +928,8 @@ function App() {
   
   const confirmExit = () => {
     setShowExitConfirm(false);
-    reset();
+    setPrescreenChecks([]);
+    resetToPrescreen();
   };
   
   const handleShare = () => {
@@ -1035,7 +1088,7 @@ function App() {
                 >
                     <MedicalIcons.Share />
                 </button>
-                {stage !== 'selection' ? (
+                {stage !== 'selection' && stage !== 'emergency_prescreen' ? (
                     <button 
                       onClick={handleExitClick} 
                       className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium py-2 px-3 rounded-lg transition-colors"
@@ -1077,26 +1130,117 @@ function App() {
           variant="warning"
         />
         
-        {stage === 'selection' ? (
+        {/* === EMERGENCY PRESCREEN === */}
+        {stage === 'emergency_prescreen' ? (
+          <div className="animate-fade-in min-h-full flex flex-col">
+            {/* Ruby Header */}
+            <div className="ruby-header px-4 pt-10 pb-8 text-center">
+              <div className="ruby-avatar w-20 h-20 mx-auto mb-4 text-3xl shadow-lg">R</div>
+              <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
+                Hi, I'm Ruby! 💎
+              </h1>
+              <p className="text-teal-100 text-sm max-w-md mx-auto">
+                Before we start, let me make sure you're safe.
+              </p>
+      </div>
+
+            {/* Emergency Check */}
+            <div className="flex-1 bg-white px-4 py-8">
+              <div className="max-w-md mx-auto">
+                <div className="bg-red-50 border border-red-200 rounded-2xl p-6 mb-6">
+                  <h2 className="text-lg font-semibold text-red-800 mb-4 flex items-center">
+                    <MedicalIcons.AlertTriangle />
+                    <span className="ml-2">Are you experiencing any of these RIGHT NOW?</span>
+                  </h2>
+                  
+                  <div className="space-y-3">
+                    {[
+                      { id: 'breathing', label: 'Trouble breathing or shortness of breath', icon: '🫁' },
+                      { id: 'chest_pain', label: 'Chest pain or pressure', icon: '💔' },
+                      { id: 'bleeding', label: 'Severe bleeding that won\'t stop', icon: '🩸' },
+                      { id: 'fainting', label: 'Fainting or feeling like you\'ll faint', icon: '😵' },
+                      { id: 'confusion', label: 'Confusion or trouble speaking', icon: '🧠' },
+                      { id: 'stroke', label: 'Face drooping, arm weakness, slurred speech', icon: '⚠️' },
+                    ].map(item => (
+                      <label 
+                        key={item.id}
+                        className={`flex items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                          prescreenChecks.includes(item.id) 
+                            ? 'border-red-500 bg-red-100' 
+                            : 'border-stone-200 hover:border-red-300 hover:bg-red-50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={prescreenChecks.includes(item.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setPrescreenChecks(prev => [...prev, item.id]);
+                            } else {
+                              setPrescreenChecks(prev => prev.filter(i => i !== item.id));
+                            }
+                          }}
+                          className="sr-only"
+                        />
+                        <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center mr-3 transition-all ${
+                          prescreenChecks.includes(item.id) 
+                            ? 'bg-red-600 border-red-600' 
+                            : 'border-stone-300 bg-white'
+                        }`}>
+                          {prescreenChecks.includes(item.id) && (
+                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                        <span className="text-sm font-medium text-stone-700">{item.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="space-y-3">
+                  {prescreenChecks.length > 0 ? (
+                    <button
+                      onClick={() => handlePrescreenComplete(true, prescreenChecks)}
+                      className="w-full py-4 bg-red-600 text-white rounded-xl font-semibold text-lg hover:bg-red-700 transition-all shadow-lg flex items-center justify-center gap-2"
+                    >
+                      <MedicalIcons.AlertTriangle />
+                      I need help NOW
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handlePrescreenComplete(false, [])}
+                      className="btn-ruby w-full flex items-center justify-center"
+                    >
+                      None of these — Continue
+                      <span className="ml-2"><MedicalIcons.ArrowRight /></span>
+                    </button>
+                  )}
+                </div>
+                
+                <p className="text-center text-stone-500 text-xs mt-6">
+                  If you're unsure, it's always safer to call 911.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : stage === 'selection' ? (
             /* --- DASHBOARD VIEW --- */
             <div className="animate-fade-in pb-20" ref={mainContentRef}>
-                {/* Ruby Hero Section */}
-                <div className="ruby-header px-4 pt-10 pb-8 text-center">
-                    <div className="max-w-3xl mx-auto">
-                        {/* Ruby Avatar */}
-                        <div className="ruby-avatar w-16 h-16 mx-auto mb-4 text-2xl shadow-lg">R</div>
-                        
-                        <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
-                          Hi, I'm Ruby! 💎
-                        </h2>
-                        <p className="text-rose-100 text-sm max-w-md mx-auto mb-2">
-                          Let me help check on how you're feeling today.
-                        </p>
-                        {getLastAssessmentDate() && (
-                          <p className="text-rose-200/70 text-xs">
-                            Welcome back! Last check: {getLastAssessmentDate()}
+                {/* Ruby Header - Simplified since we came from prescreen */}
+                <div className="ruby-header px-4 pt-6 pb-6 text-center">
+                    <div className="max-w-3xl mx-auto flex items-center justify-center">
+                        <div className="ruby-avatar w-10 h-10 text-lg mr-3">R</div>
+                        <div className="text-left">
+                          <h2 className="text-xl font-bold text-white">
+                            Select a Symptom
+                          </h2>
+                          <p className="text-teal-200 text-xs">
+                            Ruby will guide you through the assessment
                           </p>
-                        )}
+                        </div>
                     </div>
                 </div>
                 
@@ -1185,7 +1329,7 @@ function App() {
                       <div className="flex items-center mb-2">
                         <span className="text-slate-500 mr-2"><MedicalIcons.Clock /></span>
                         <span className="text-xs font-medium text-slate-600">Recent Assessments</span>
-                      </div>
+                        </div>
                       <div className="flex gap-2 overflow-x-auto pb-1">
                         {recentSymptoms.map(s => (
                           <button
@@ -1196,8 +1340,8 @@ function App() {
                             {s.name}
                           </button>
                         ))}
-                      </div>
                     </div>
+                </div>
                   </div>
                 )}
 
@@ -1230,8 +1374,8 @@ function App() {
                              >
                                Urgent Symptoms
                              </button>
-                        </div>
-                    </div>
+                            </div>
+                            </div>
                 </nav>
 
                 {/* Cards Container */}
@@ -1245,7 +1389,7 @@ function App() {
                                 <div>
                                   <h3 id="common-heading" className="text-sm font-semibold text-slate-800">Common Side Effects</h3>
                                   <p className="text-xs text-slate-500">Treatment-related symptoms</p>
-                                </div>
+                            </div>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" role="list" aria-label="Common side effects list">
                                 {COMMON_SYMPTOMS.map(s => (
@@ -1264,7 +1408,7 @@ function App() {
                                 <div>
                                   <h3 id="other-heading" className="text-sm font-semibold text-slate-800">General Symptoms</h3>
                                   <p className="text-xs text-slate-500">Other symptoms to assess</p>
-                                </div>
+                            </div>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" role="list" aria-label="General symptoms list">
                                 {OTHER_SYMPTOMS.map(s => (
@@ -1288,7 +1432,7 @@ function App() {
                                   <div className="text-left">
                                     <h3 id="emergency-heading" className="text-sm font-semibold text-red-700">Urgent Symptoms</h3>
                                     <p className="text-xs text-red-500">Requires immediate attention — {emergencyCollapsed ? 'tap to expand' : 'tap to collapse'}</p>
-                                  </div>
+                        </div>
                                 </div>
                                 <span className={`text-red-400 transition-transform ${emergencyCollapsed ? '' : 'rotate-180'}`}>
                                   <MedicalIcons.ChevronDown />
@@ -1332,9 +1476,9 @@ function App() {
                 </div>
 
                 <div role="log" aria-live="polite" aria-label="Chat conversation">
-                  {history.map((msg) => (
-                      <ChatBubble key={msg.id} message={msg} />
-                  ))}
+                {history.map((msg) => (
+                    <ChatBubble key={msg.id} message={msg} />
+                ))}
                 </div>
                 {isTyping && <TypingIndicator />}
                 
@@ -1539,7 +1683,7 @@ function App() {
                             </div>
 
                             <button 
-                                onClick={reset}
+                                onClick={() => { setPrescreenChecks([]); resetToPrescreen(); }}
                                 className="w-full py-3 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-all"
                             >
                                 End Session
@@ -1657,7 +1801,7 @@ function App() {
                 <div className="flex space-x-3">
                     <label htmlFor="temp-input" className="sr-only">Enter temperature in Fahrenheit</label>
                     <div className="temp-input-wrapper flex-1">
-                      <input 
+                    <input 
                       id="temp-input"
                       type="number" 
                       value={textInput}

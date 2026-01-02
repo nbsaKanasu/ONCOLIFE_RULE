@@ -6,6 +6,14 @@ import { SYMPTOMS, SymptomDef, Question, ActionLevel, isHigherSeverity, InputTyp
 
 type SymptomStatus = 'checking' | 'safe' | 'alert' | 'emergency';
 type FontScale = 'small' | 'normal' | 'large' | 'xlarge';
+type FilterCategory = 'all' | 'digestive' | 'pain' | 'respiratory' | 'neurological' | 'skin' | 'general';
+
+// Session history for "Recently Checked"
+interface SessionHistory {
+  symptomId: string;
+  timestamp: number;
+  result: ActionLevel;
+}
 
 // --- Accessibility: Font Size Hook ---
 const useFontScale = () => {
@@ -18,15 +26,113 @@ const useFontScale = () => {
 
   useEffect(() => {
     const html = document.documentElement;
-    // Remove all font scale classes
     html.classList.remove('font-scale-small', 'font-scale-normal', 'font-scale-large', 'font-scale-xlarge');
-    // Add current font scale class
     html.classList.add(`font-scale-${fontScale}`);
-    // Persist preference
     localStorage.setItem('oncolife-font-scale', fontScale);
   }, [fontScale]);
 
   return { fontScale, setFontScale };
+};
+
+// --- Dark Mode Hook ---
+const useDarkMode = () => {
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('oncolife-dark-mode');
+      if (stored !== null) return stored === 'true';
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const html = document.documentElement;
+    if (isDark) {
+      html.classList.add('dark');
+    } else {
+      html.classList.remove('dark');
+    }
+    localStorage.setItem('oncolife-dark-mode', String(isDark));
+  }, [isDark]);
+
+  return { isDark, setIsDark, toggleDark: () => setIsDark(prev => !prev) };
+};
+
+// --- Session History Hook ---
+const useSessionHistory = () => {
+  const [history, setHistory] = useState<SessionHistory[]>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('oncolife-session-history');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          // Only keep last 30 days
+          const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+          return parsed.filter((h: SessionHistory) => h.timestamp > thirtyDaysAgo);
+        } catch { return []; }
+      }
+    }
+    return [];
+  });
+
+  const addToHistory = (symptomId: string, result: ActionLevel) => {
+    setHistory(prev => {
+      const updated = [{ symptomId, timestamp: Date.now(), result }, ...prev.filter(h => h.symptomId !== symptomId)].slice(0, 20);
+      localStorage.setItem('oncolife-session-history', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const getLastAssessmentDate = (): string | null => {
+    if (history.length === 0) return null;
+    const date = new Date(history[0].timestamp);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  return { history, addToHistory, getLastAssessmentDate };
+};
+
+// --- Confirmation Dialog Component ---
+const ConfirmDialog: React.FC<{
+  isOpen: boolean;
+  title: string;
+  message: string;
+  confirmText: string;
+  cancelText: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  variant?: 'danger' | 'warning' | 'info';
+}> = ({ isOpen, title, message, confirmText, cancelText, onConfirm, onCancel, variant = 'warning' }) => {
+  if (!isOpen) return null;
+  
+  const variantStyles = {
+    danger: 'bg-red-600 hover:bg-red-700',
+    warning: 'bg-amber-600 hover:bg-amber-700',
+    info: 'bg-teal-600 hover:bg-teal-700'
+  };
+
+  return (
+    <div className="dialog-overlay" onClick={onCancel} role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+      <div className="dialog-box" onClick={e => e.stopPropagation()}>
+        <h3 id="dialog-title" className="text-xl font-bold text-slate-800 mb-2">{title}</h3>
+        <p className="text-slate-600 mb-6">{message}</p>
+        <div className="flex space-x-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-3 px-4 rounded-xl border border-slate-200 font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            {cancelText}
+          </button>
+          <button
+            onClick={onConfirm}
+            className={`flex-1 py-3 px-4 rounded-xl font-semibold text-white transition-colors ${variantStyles[variant]}`}
+          >
+            {confirmText}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 // --- Accessibility: Screen Reader Announcements ---
@@ -296,7 +402,7 @@ const FontSizeSelector: React.FC<{ fontScale: FontScale; setFontScale: (scale: F
 
 const useSymptomChecker = () => {
   const [history, setHistory] = useState<Message[]>([
-    { id: 'welcome', sender: 'bot', content: 'Hello. I am Ruby, your compassionate oncology assistant. Please select a symptom below so I can help you. If this is a medical emergency, call 911 immediately.' }
+    { id: 'welcome', sender: 'bot', content: "Hello! I'm Ruby, your caring oncology companion. 💚 Let's check on how you're feeling together. Take your time — there's no rush. If this is an emergency, please call 911 right away." }
   ]);
   const [currentSymptomId, setCurrentSymptomId] = useState<string | null>(null);
   const [currentSymptomMsgId, setCurrentSymptomMsgId] = useState<string | null>(null);
@@ -377,9 +483,9 @@ const useSymptomChecker = () => {
       return -1; // No questions left to ask
   };
 
-  const startSymptomLogic = (symptomId: string) => {
+  const startSymptomLogic = (symptomId: string, transitionReason?: string) => {
     if (visitedSymptoms.includes(symptomId)) {
-        addMessage(`(System Note: Symptom '${SYMPTOMS[symptomId].name}' already checked, skipping to prevent loop)`, 'bot', false, true);
+        addMessage(`(We've already reviewed ${SYMPTOMS[symptomId].name} — moving on)`, 'bot', false, true);
         completeSingleSymptom();
         return;
     }
@@ -395,7 +501,12 @@ const useSymptomChecker = () => {
     setVisitedSymptoms(prev => [...prev, symptomId]);
     setSymptomResults(prev => ({ ...prev, [symptomId]: 'none' })); 
     
-    const msgId = addMessage(`Checking: ${symptom.name}`, 'bot', false, true, symptomId, 'checking');
+    // Warmer transition message if branching
+    if (transitionReason) {
+        addMessage(transitionReason, 'bot');
+    }
+    
+    const msgId = addMessage(`Let's talk about: ${symptom.name}`, 'bot', false, true, symptomId, 'checking');
     setCurrentSymptomMsgId(msgId);
     
     // Determine start index by skipping already answered questions
@@ -488,7 +599,8 @@ const useSymptomChecker = () => {
     
     if (result.action === 'branch' && result.branchToSymptomId) {
         if (!visitedSymptoms.includes(result.branchToSymptomId)) {
-             addMessage(`Based on your answers, checking ${SYMPTOMS[result.branchToSymptomId].name} next.`, 'bot', false, true);
+             const branchName = SYMPTOMS[result.branchToSymptomId].name;
+             addMessage(`Based on what you've shared, I'd also like to ask about ${branchName.toLowerCase()} — this helps me get a complete picture of how you're feeling. 💭`, 'bot');
              setSymptomQueue(prev => [result.branchToSymptomId!, ...prev.filter(id => id !== result.branchToSymptomId!)]);
         }
         completeSingleSymptom();
@@ -502,7 +614,7 @@ const useSymptomChecker = () => {
         const firstIdx = findNextUnansweredQuestion(symptom.followUpQuestions, 0, finalAnswers);
         
         if (firstIdx !== -1) {
-             addMessage("Checking for additional symptoms...", 'bot');
+             addMessage("You're doing great! Just a few more questions to make sure we have the full picture... 📋", 'bot');
              setCurrentQuestionIndex(firstIdx);
              setTimeout(() => askQuestion(symptom.followUpQuestions![firstIdx]), 500);
         } else {
@@ -532,7 +644,8 @@ const useSymptomChecker = () => {
 
           if (result.action === 'branch' && result.branchToSymptomId) {
                if (!visitedSymptoms.includes(result.branchToSymptomId)) {
-                    addMessage(`Checking related symptom: ${SYMPTOMS[result.branchToSymptomId].name}`, 'bot', false, true);
+                    const branchName = SYMPTOMS[result.branchToSymptomId].name;
+                    addMessage(`Your answers suggest I should also check on ${branchName.toLowerCase()}. This is just to be thorough! 🔍`, 'bot');
                     setSymptomQueue(prev => [result.branchToSymptomId!, ...prev.filter(id => id !== result.branchToSymptomId!)]);
                }
           }
@@ -555,12 +668,12 @@ const useSymptomChecker = () => {
     if (currentSymptomId) {
         const result = symptomResults[currentSymptomId] || 'none';
         const name = SYMPTOMS[currentSymptomId].name;
-        let statusText = "Safe / No Action";
-        if (result === 'call_911') statusText = "Emergency - Call 911";
-        else if (result === 'notify_care_team') statusText = "Notify Care Team";
-        else if (result === 'refer_provider') statusText = "Contact Provider";
+        let statusText = "✓ All clear for now";
+        if (result === 'call_911') statusText = "⚠ Emergency — please call 911";
+        else if (result === 'notify_care_team') statusText = "📞 Care team will be notified";
+        else if (result === 'refer_provider') statusText = "📋 Discuss at next appointment";
         
-        addMessage(`${name} Assessment Complete. Status: ${statusText}`, 'bot', false, true);
+        addMessage(`${name} — ${statusText}`, 'bot', false, true);
     }
     
     const nextQueue = symptomQueue.filter(id => id !== currentSymptomId);
@@ -618,6 +731,17 @@ const useSymptomChecker = () => {
 
 // --- Main UI ---
 
+// Quick filter categories mapping
+const FILTER_CATEGORIES: Record<FilterCategory, string[]> = {
+  all: [],
+  digestive: ['NAU-203', 'VOM-204', 'DIA-205', 'CON-206', 'APP-209'],
+  pain: ['PAI-213', 'URG-111', 'URG-112', 'URG-113'],
+  respiratory: ['URG-101', 'COU-215'],
+  neurological: ['URG-102', 'NEU-216', 'NEU-304'],
+  skin: ['SKI-212', 'URG-114'],
+  general: ['FEV-202', 'MSO-208', 'URI-211', 'SLE-217']
+};
+
 function App() {
   const { history, stage, startSession, handleAnswer, isTyping, currentQuestion, reset, continueSession, currentSymptomId, highestSeverity, triageReasons, visitedSymptoms, symptomResults } = useSymptomChecker();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -627,10 +751,14 @@ function App() {
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   
-  // Accessibility: Font scale management
+  // New UX Features
   const { fontScale, setFontScale } = useFontScale();
-  
-  // Accessibility: Screen reader announcement state
+  const { isDark, toggleDark } = useDarkMode();
+  const { history: sessionHistory, addToHistory, getLastAssessmentDate } = useSessionHistory();
+  const [activeFilter, setActiveFilter] = useState<FilterCategory>('all');
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [emergencyCollapsed, setEmergencyCollapsed] = useState(true); // Start collapsed to reduce anxiety
+  const [showEmergencyConfirm, setShowEmergencyConfirm] = useState(false);
   const [announcement, setAnnouncement] = useState('');
 
   const emergencyRef = useRef<HTMLDivElement>(null);
@@ -640,6 +768,20 @@ function App() {
 
   const scrollToSection = (ref: React.RefObject<HTMLDivElement | null>) => {
       ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  
+  // Handle exit with confirmation if mid-assessment
+  const handleExitClick = () => {
+    if (stage !== 'selection' && stage !== 'complete') {
+      setShowExitConfirm(true);
+    } else {
+      reset();
+    }
+  };
+  
+  const confirmExit = () => {
+    setShowExitConfirm(false);
+    reset();
   };
   
   const handleShare = () => {
@@ -652,6 +794,15 @@ function App() {
         if(document.body.contains(toast)) document.body.removeChild(toast);
     }, 2000);
   };
+  
+  // Save to session history when completing
+  useEffect(() => {
+    if (stage === 'complete') {
+      visitedSymptoms.forEach(sId => {
+        addToHistory(sId, symptomResults[sId] || 'none');
+      });
+    }
+  }, [stage]);
 
   useEffect(() => {
       const timer = setTimeout(() => {
@@ -719,13 +870,20 @@ function App() {
       }
   };
 
-  const filteredSymptoms = Object.values(SYMPTOMS).filter(s => 
-    !s.hidden && s.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter symptoms by search query and active category filter
+  const filteredSymptoms = Object.values(SYMPTOMS).filter(s => {
+    if (s.hidden) return false;
+    const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter = activeFilter === 'all' || FILTER_CATEGORIES[activeFilter].includes(s.id);
+    return matchesSearch && matchesFilter;
+  });
 
   const URGENT_SYMPTOMS = filteredSymptoms.filter(s => s.category === 'emergency');
   const COMMON_SYMPTOMS = filteredSymptoms.filter(s => s.category === 'common');
   const OTHER_SYMPTOMS = filteredSymptoms.filter(s => s.category === 'other');
+  
+  // Get recently checked symptoms for quick access
+  const recentSymptoms = sessionHistory.slice(0, 3).map(h => SYMPTOMS[h.symptomId]).filter(Boolean);
 
   return (
     <div className="flex flex-col h-[100dvh] w-full mx-auto overflow-hidden font-sans text-slate-900 bg-slate-50">
@@ -768,6 +926,20 @@ function App() {
                   <FontSizeSelector fontScale={fontScale} setFontScale={setFontScale} />
                 </div>
                 
+                {/* Dark Mode Toggle */}
+                <button 
+                  onClick={toggleDark} 
+                  className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors" 
+                  title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+                  aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+                >
+                    {isDark ? (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                    )}
+                </button>
+                
                 <button 
                   onClick={handleShare} 
                   className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors" 
@@ -778,7 +950,7 @@ function App() {
                 </button>
                 {stage !== 'selection' ? (
                     <button 
-                      onClick={reset} 
+                      onClick={handleExitClick} 
                       className="bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold py-2 px-4 rounded-lg transition-all border border-slate-200 shadow-sm hover:shadow active:scale-95"
                       aria-label="Exit current assessment and return to symptom selection"
                     >
@@ -806,17 +978,43 @@ function App() {
         aria-label={stage === 'selection' ? 'Symptom selection dashboard' : 'Symptom assessment conversation'}
       >
         
+        {/* Exit Confirmation Dialog */}
+        <ConfirmDialog
+          isOpen={showExitConfirm}
+          title="Leave Assessment?"
+          message="You have an assessment in progress. Your answers will be lost if you leave now. Are you sure you want to exit?"
+          confirmText="Yes, Exit"
+          cancelText="Continue Assessment"
+          onConfirm={confirmExit}
+          onCancel={() => setShowExitConfirm(false)}
+          variant="warning"
+        />
+        
         {stage === 'selection' ? (
             /* --- DASHBOARD VIEW --- */
             <div className="animate-fade-in pb-20" ref={mainContentRef}>
-                {/* Hero / Search Section */}
-                <div className="bg-teal-700 px-4 pt-10 pb-12 relative overflow-hidden bg-gradient-to-br from-teal-700 to-teal-900">
+                {/* Hero / Search Section - Warmer gradient */}
+                <div className="hero-gradient px-4 pt-10 pb-12 relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none mix-blend-overlay" aria-hidden="true">
                          <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0 100 C 20 0 50 0 100 100 Z" fill="white" /></svg>
                     </div>
                     <div className="max-w-2xl mx-auto text-center relative z-10">
-                        <h2 className="text-3xl md:text-4xl font-bold text-white mb-3 tracking-tight">How are you feeling?</h2>
-                        <p className="text-teal-100 text-sm md:text-base mb-8 opacity-90">Select a symptom below to start your professional safety assessment.</p>
+                        {/* Personalized greeting with last assessment date */}
+                        {getLastAssessmentDate() && (
+                          <p className="text-emerald-200 text-xs mb-2 font-medium">
+                            Welcome back! Last check: {getLastAssessmentDate()}
+                          </p>
+                        )}
+                        <h2 className="text-3xl md:text-4xl font-bold text-white mb-3 tracking-tight">
+                          Let's check on how you're feeling 💚
+                        </h2>
+                        <p className="text-emerald-100 text-sm md:text-base mb-2 opacity-90">
+                          Select a symptom below and we'll go through it together.
+                        </p>
+                        {/* Reassurance messaging */}
+                        <p className="text-emerald-200/80 text-xs mb-8 gentle-pulse">
+                          Take your time — there's no rush. 🌿
+                        </p>
                         
                         {/* Mobile Font Size Selector */}
                         <div className="sm:hidden flex justify-center mb-6">
@@ -841,6 +1039,27 @@ function App() {
                             <span id="search-results-count" className="sr-only">
                               {filteredSymptoms.length} symptoms found
                             </span>
+                        </div>
+                        
+                        {/* Quick Filter Pills */}
+                        <div className="flex flex-wrap justify-center gap-2 mb-4">
+                          {[
+                            { id: 'all', label: 'All', icon: '🔍' },
+                            { id: 'digestive', label: 'Digestive', icon: '🍽️' },
+                            { id: 'pain', label: 'Pain', icon: '💢' },
+                            { id: 'respiratory', label: 'Breathing', icon: '🫁' },
+                            { id: 'neurological', label: 'Neuro', icon: '🧠' },
+                            { id: 'skin', label: 'Skin', icon: '🩹' },
+                            { id: 'general', label: 'General', icon: '🌡️' },
+                          ].map(filter => (
+                            <button
+                              key={filter.id}
+                              onClick={() => setActiveFilter(filter.id as FilterCategory)}
+                              className={`filter-pill ${activeFilter === filter.id ? 'active bg-white text-teal-700' : 'bg-teal-800/40 text-teal-100 hover:bg-teal-800/60'}`}
+                            >
+                              <span className="mr-1">{filter.icon}</span> {filter.label}
+                            </button>
+                          ))}
                         </div>
                         
                         <div 
@@ -870,7 +1089,31 @@ function App() {
                     </div>
                 </div>
 
-                {/* Static Category Nav */}
+                {/* Recently Checked Section */}
+                {recentSymptoms.length > 0 && activeFilter === 'all' && !searchQuery && (
+                  <div className="bg-amber-50 border-b border-amber-100 py-4">
+                    <div className="max-w-5xl mx-auto px-4">
+                      <div className="flex items-center mb-3">
+                        <span className="text-amber-600 mr-2">🕐</span>
+                        <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">Recently Checked</span>
+                      </div>
+                      <div className="flex gap-3 overflow-x-auto pb-2">
+                        {recentSymptoms.map(s => (
+                          <button
+                            key={s.id}
+                            onClick={() => handleCardClick(s.id)}
+                            className="shrink-0 px-4 py-2 bg-white rounded-xl border border-amber-200 text-sm font-medium text-amber-800 hover:bg-amber-100 transition-colors shadow-sm flex items-center"
+                          >
+                            <span className="mr-2">{s.icon}</span>
+                            {s.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Category Jump Nav */}
                 <nav 
                   className="bg-white border-b border-slate-100 py-4 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] relative z-20"
                   aria-label="Symptom categories"
@@ -879,7 +1122,7 @@ function App() {
                         <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar pb-1" role="group">
                              <span className="text-xs font-bold text-slate-400 uppercase mr-2 shrink-0 hidden sm:inline-block" id="category-nav-label">Jump to:</span>
                              <button 
-                               onClick={() => scrollToSection(emergencyRef)} 
+                               onClick={() => { setEmergencyCollapsed(false); setTimeout(() => scrollToSection(emergencyRef), 100); }} 
                                className="shrink-0 px-4 py-2 rounded-full bg-red-50 text-red-600 font-bold text-xs uppercase tracking-wider border border-red-100 hover:bg-red-100 transition-colors shadow-sm focus-emergency"
                                aria-label="Jump to emergency symptoms section"
                              >
@@ -903,49 +1146,73 @@ function App() {
                     </div>
                 </nav>
 
-                {/* Cards Container */}
-                <div className="max-w-5xl mx-auto px-4 mt-8 relative z-10 space-y-12">
-                    {(URGENT_SYMPTOMS.length > 0 || searchQuery === '') && (
-                        <section ref={emergencyRef} className="scroll-mt-32" aria-labelledby="emergency-heading">
-                            <div className="flex items-center mb-4 pb-2 border-b border-slate-100">
-                                <span className="bg-red-100 text-red-600 p-1.5 rounded-lg mr-3 status-pattern-emergency" aria-hidden="true"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg></span>
-                                <h3 id="emergency-heading" className="text-sm font-bold text-slate-600 uppercase tracking-widest">⚠ Emergency Symptoms</h3>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" role="list" aria-label="Emergency symptoms list">
-                                {URGENT_SYMPTOMS.map(s => (
-                                    <SymptomCard key={s.id} symptom={s} onClick={handleCardClick} variant="emergency" result={visitedSymptoms.includes(s.id) ? symptomResults[s.id] : undefined} isMultiSelectMode={isMultiSelectMode} isSelected={selectedSymptoms.includes(s.id)} />
-                                ))}
-                                {URGENT_SYMPTOMS.length === 0 && <p className="text-slate-400 italic text-sm col-span-full text-center py-8" role="status">No emergency symptoms match your search.</p>}
-                            </div>
-                        </section>
-                    )}
-
+                {/* Cards Container - Reordered: Common first, then Other, Emergency last (collapsible) */}
+                <div className="max-w-5xl mx-auto px-4 mt-8 relative z-10 space-y-14">
+                    
+                    {/* Common Side Effects - First (most relevant for oncology patients) */}
                     {(COMMON_SYMPTOMS.length > 0 || searchQuery === '') && (
                         <section ref={commonRef} className="scroll-mt-32" aria-labelledby="common-heading">
-                            <div className="flex items-center mb-4 pb-2 border-b border-slate-100">
-                                <span className="bg-teal-100 text-teal-600 p-1.5 rounded-lg mr-3" aria-hidden="true"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg></span>
-                                <h3 id="common-heading" className="text-sm font-bold text-slate-600 uppercase tracking-widest">○ Common Side Effects</h3>
+                            <div className="flex items-center mb-6 pb-2 border-b border-slate-100">
+                                <span className="bg-teal-100 text-teal-600 p-2 rounded-xl mr-3" aria-hidden="true"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg></span>
+                                <div>
+                                  <h3 id="common-heading" className="text-sm font-bold text-slate-700 uppercase tracking-widest">Common Side Effects</h3>
+                                  <p className="text-xs text-slate-400">Treatment-related symptoms we can help with</p>
+                                </div>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" role="list" aria-label="Common side effects list">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" role="list" aria-label="Common side effects list">
                                 {COMMON_SYMPTOMS.map(s => (
                                     <SymptomCard key={s.id} symptom={s} onClick={handleCardClick} variant="common" result={visitedSymptoms.includes(s.id) ? symptomResults[s.id] : undefined} isMultiSelectMode={isMultiSelectMode} isSelected={selectedSymptoms.includes(s.id)} />
                                 ))}
-                                {COMMON_SYMPTOMS.length === 0 && <p className="text-slate-400 italic text-sm col-span-full text-center py-8" role="status">No common symptoms match your search.</p>}
+                                {COMMON_SYMPTOMS.length === 0 && <p className="text-slate-400 italic text-sm col-span-full text-center py-8" role="status">No common symptoms match your filter.</p>}
                             </div>
                         </section>
                     )}
 
+                    {/* General & Other Symptoms - Second */}
                     {(OTHER_SYMPTOMS.length > 0 || searchQuery === '') && (
                         <section ref={otherRef} className="scroll-mt-32" aria-labelledby="other-heading">
-                            <div className="flex items-center mb-4 pb-2 border-b border-slate-100">
-                                <span className="bg-indigo-100 text-indigo-600 p-1.5 rounded-lg mr-3" aria-hidden="true"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg></span>
-                                <h3 id="other-heading" className="text-sm font-bold text-slate-600 uppercase tracking-widest">◇ General & Other Symptoms</h3>
+                            <div className="flex items-center mb-6 pb-2 border-b border-slate-100">
+                                <span className="bg-indigo-100 text-indigo-600 p-2 rounded-xl mr-3" aria-hidden="true"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg></span>
+                                <div>
+                                  <h3 id="other-heading" className="text-sm font-bold text-slate-700 uppercase tracking-widest">General Symptoms</h3>
+                                  <p className="text-xs text-slate-400">Other concerns you may want to check</p>
+                                </div>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" role="list" aria-label="General symptoms list">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" role="list" aria-label="General symptoms list">
                                 {OTHER_SYMPTOMS.map(s => (
                                     <SymptomCard key={s.id} symptom={s} onClick={handleCardClick} variant="other" result={visitedSymptoms.includes(s.id) ? symptomResults[s.id] : undefined} isMultiSelectMode={isMultiSelectMode} isSelected={selectedSymptoms.includes(s.id)} />
                                 ))}
-                                {OTHER_SYMPTOMS.length === 0 && <p className="text-slate-400 italic text-sm col-span-full text-center py-8" role="status">No other symptoms match your search.</p>}
+                                {OTHER_SYMPTOMS.length === 0 && <p className="text-slate-400 italic text-sm col-span-full text-center py-8" role="status">No general symptoms match your filter.</p>}
+                            </div>
+                        </section>
+                    )}
+
+                    {/* Emergency Symptoms - Last, Collapsible to reduce anxiety */}
+                    {(URGENT_SYMPTOMS.length > 0 || searchQuery === '') && (
+                        <section ref={emergencyRef} className="scroll-mt-32" aria-labelledby="emergency-heading">
+                            <button 
+                              onClick={() => setEmergencyCollapsed(!emergencyCollapsed)}
+                              className="collapsible-header w-full flex items-center justify-between mb-4 pb-2 border-b border-red-100 hover:bg-red-50/50 rounded-lg p-2 -ml-2 transition-colors"
+                              aria-expanded={!emergencyCollapsed}
+                            >
+                                <div className="flex items-center">
+                                  <span className="bg-red-100 text-red-600 p-2 rounded-xl mr-3 status-pattern-emergency" aria-hidden="true"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg></span>
+                                  <div className="text-left">
+                                    <h3 id="emergency-heading" className="text-sm font-bold text-red-700 uppercase tracking-widest">Emergency Symptoms</h3>
+                                    <p className="text-xs text-red-400">For urgent concerns — tap to {emergencyCollapsed ? 'expand' : 'collapse'}</p>
+                                  </div>
+                                </div>
+                                <svg className={`w-5 h-5 text-red-400 transition-transform ${emergencyCollapsed ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            <div className={`collapsible-content ${emergencyCollapsed ? '' : 'expanded'}`}>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" role="list" aria-label="Emergency symptoms list">
+                                  {URGENT_SYMPTOMS.map(s => (
+                                      <SymptomCard key={s.id} symptom={s} onClick={handleCardClick} variant="emergency" result={visitedSymptoms.includes(s.id) ? symptomResults[s.id] : undefined} isMultiSelectMode={isMultiSelectMode} isSelected={selectedSymptoms.includes(s.id)} />
+                                  ))}
+                                  {URGENT_SYMPTOMS.length === 0 && <p className="text-slate-400 italic text-sm col-span-full text-center py-8" role="status">No emergency symptoms match your filter.</p>}
+                              </div>
                             </div>
                         </section>
                     )}
@@ -993,8 +1260,46 @@ function App() {
                             >
                                 <div className="absolute top-0 right-0 w-32 h-32 bg-red-200 rounded-full blur-3xl opacity-20 -mr-10 -mt-10" aria-hidden="true"></div>
                                 <div className="text-6xl mb-4 animate-bounce" aria-hidden="true">🚨</div>
-                                <h2 className="text-3xl font-extrabold text-red-700 mb-2 tracking-tight">⚠ EMERGENCY - Immediate Action Required</h2>
-                                <p className="text-red-800 text-lg font-semibold mb-8">Call 911 or your Care Team right away. This is an emergency.</p>
+                                <h2 className="text-3xl font-extrabold text-red-700 mb-2 tracking-tight">⚠ EMERGENCY</h2>
+                                <p className="text-red-800 text-lg font-semibold mb-6">Call 911 or your Care Team right away. This is an emergency.</p>
+                                
+                                {/* Emergency Action Buttons */}
+                                <div className="grid gap-3 mb-6">
+                                  {/* Phone Dialer Button - auto-opens phone on mobile */}
+                                  <a 
+                                    href="tel:911"
+                                    className="w-full py-4 bg-red-600 text-white rounded-xl font-bold text-xl hover:bg-red-700 transition-all shadow-lg flex items-center justify-center gap-2"
+                                  >
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                    </svg>
+                                    Call 911 Now
+                                  </a>
+                                  
+                                  {/* I've Called 911 Confirmation */}
+                                  {!showEmergencyConfirm ? (
+                                    <button
+                                      onClick={() => setShowEmergencyConfirm(true)}
+                                      className="w-full py-3 bg-white text-red-700 rounded-xl font-semibold border-2 border-red-200 hover:bg-red-50 transition-all flex items-center justify-center gap-2"
+                                    >
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                      I've already called 911
+                                    </button>
+                                  ) : (
+                                    <div className="bg-green-100 border border-green-200 rounded-xl p-4 text-green-800">
+                                      <p className="font-semibold flex items-center gap-2">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Confirmed — help is on the way
+                                      </p>
+                                      <p className="text-sm mt-1 text-green-700">Stay calm. If possible, unlock your door and wait for emergency services.</p>
+                                    </div>
+                                  )}
+                                </div>
+                                
                                 <div className="bg-white rounded-2xl p-5 border border-red-100 text-left shadow-sm">
                                     <p className="text-[10px] text-red-400 uppercase font-bold mb-3 tracking-widest">Clinical Reasoning:</p>
                                     <ul className="space-y-2 text-red-900 text-sm font-medium" aria-label="Reasons for emergency status">
@@ -1097,7 +1402,9 @@ function App() {
                             </div>
                         )}
 
+                        {/* Session Actions */}
                         <div className="grid gap-3 mt-8">
+                            {/* Primary Actions */}
                             <button 
                                 onClick={continueSession}
                                 className="w-full py-4 bg-teal-600 text-white rounded-xl font-bold text-lg hover:bg-teal-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1 flex items-center justify-center"
@@ -1105,6 +1412,56 @@ function App() {
                                 <span>Check Another Symptom</span>
                                 <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                             </button>
+
+                            {/* Secondary Actions Row */}
+                            <div className="grid grid-cols-3 gap-2">
+                              {/* Email Summary */}
+                              <button 
+                                onClick={() => {
+                                  const subject = encodeURIComponent('OncoLife Symptom Assessment Summary');
+                                  const body = encodeURIComponent(`Symptoms Checked: ${visitedSymptoms.map(s => SYMPTOMS[s].name).join(', ')}\n\nStatus: ${highestSeverity === 'call_911' ? 'Emergency' : highestSeverity === 'notify_care_team' ? 'Alert' : highestSeverity === 'refer_provider' ? 'Consult' : 'Safe'}\n\nNotes:\n${triageReasons.join('\n')}\n\nDate: ${new Date().toLocaleDateString()}`);
+                                  window.location.href = `mailto:?subject=${subject}&body=${body}`;
+                                }}
+                                className="py-3 px-2 bg-white text-slate-700 rounded-xl font-semibold text-sm border border-slate-200 hover:bg-slate-50 transition-all flex flex-col items-center justify-center gap-1"
+                                title="Email summary to your care team"
+                              >
+                                <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                                <span>Email</span>
+                              </button>
+                              
+                              {/* Save as PDF (print) */}
+                              <button 
+                                onClick={() => window.print()}
+                                className="py-3 px-2 bg-white text-slate-700 rounded-xl font-semibold text-sm border border-slate-200 hover:bg-slate-50 transition-all flex flex-col items-center justify-center gap-1"
+                                title="Save or print summary"
+                              >
+                                <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                </svg>
+                                <span>Print/PDF</span>
+                              </button>
+                              
+                              {/* Set Reminder */}
+                              <button 
+                                onClick={() => {
+                                  const reminderTime = new Date(Date.now() + 4 * 60 * 60 * 1000); // 4 hours from now
+                                  const title = encodeURIComponent('Symptom Recheck - OncoLife');
+                                  const details = encodeURIComponent(`Time to recheck your symptoms: ${visitedSymptoms.map(s => SYMPTOMS[s].name).join(', ')}`);
+                                  // Try to open calendar (works on most devices)
+                                  const calendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&dates=${reminderTime.toISOString().replace(/[-:]/g, '').split('.')[0]}Z/${new Date(reminderTime.getTime() + 30*60000).toISOString().replace(/[-:]/g, '').split('.')[0]}Z`;
+                                  window.open(calendarUrl, '_blank');
+                                }}
+                                className="py-3 px-2 bg-white text-slate-700 rounded-xl font-semibold text-sm border border-slate-200 hover:bg-slate-50 transition-all flex flex-col items-center justify-center gap-1"
+                                title="Set a reminder to recheck in 4 hours"
+                              >
+                                <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>Remind</span>
+                              </button>
+                            </div>
 
                             <button 
                                 onClick={reset}
@@ -1131,26 +1488,28 @@ function App() {
         >
             <div className="max-w-2xl mx-auto animate-fade-in">
                 {currentQuestion?.type === 'yes_no' && (
-                <div className="grid grid-cols-2 gap-4" role="group" aria-label="Yes or No answer options">
+                <div className="grid grid-cols-5 gap-4" role="group" aria-label="Yes or No answer options">
+                    {/* No button - smaller, less prominent */}
                     <button 
                       onClick={() => handleAnswer(false)} 
-                      className="p-4 rounded-2xl border-2 border-slate-200 font-bold text-slate-600 text-lg hover:border-slate-300 hover:bg-slate-50 active:scale-95 transition-all"
+                      className="col-span-2 p-4 rounded-2xl border-2 border-slate-200 font-bold text-slate-600 text-lg hover:border-slate-300 hover:bg-slate-50 active:scale-95 transition-all"
                       aria-label="Answer No"
                     >
                       No
                     </button>
+                    {/* Yes button - larger, more prominent (action-triggering) */}
                     <button 
                       onClick={() => handleAnswer(true)} 
-                      className="p-4 rounded-2xl bg-teal-600 text-white font-bold text-lg shadow-lg hover:bg-teal-700 active:scale-95 transition-all hover:shadow-teal-500/30"
+                      className="col-span-3 p-5 rounded-2xl bg-teal-600 text-white font-bold text-xl shadow-lg hover:bg-teal-700 active:scale-95 transition-all yes-button-prominent"
                       aria-label="Answer Yes"
                     >
-                      Yes
+                      Yes ✓
                     </button>
                 </div>
                 )}
 
                 {currentQuestion?.type === 'choice' && (
-                <div className="grid grid-cols-1 gap-2" role="radiogroup" aria-label="Select one option">
+                <div className="grid grid-cols-1 gap-3" role="radiogroup" aria-label="Select one option">
                     {currentQuestion.options?.map(opt => (
                         <button 
                         key={opt.value.toString()} 
@@ -1168,7 +1527,27 @@ function App() {
 
                 {currentQuestion?.type === 'multiselect' && (
                 <div className="space-y-3" role="group" aria-label="Select all that apply">
-                    <p className="text-xs text-slate-500 font-medium mb-2" id="multiselect-hint">Select all options that apply, then confirm your selection</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-slate-500 font-medium" id="multiselect-hint">Select all that apply</p>
+                      {/* Select All / Clear All batch actions */}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setMultiSelect(currentQuestion.options?.map(o => o.value as string) || [])}
+                          className="text-xs text-teal-600 hover:text-teal-800 font-semibold px-2 py-1 rounded hover:bg-teal-50 transition-colors"
+                          type="button"
+                        >
+                          Select All
+                        </button>
+                        <span className="text-slate-300">|</span>
+                        <button
+                          onClick={() => setMultiSelect([])}
+                          className="text-xs text-slate-500 hover:text-slate-700 font-semibold px-2 py-1 rounded hover:bg-slate-100 transition-colors"
+                          type="button"
+                        >
+                          Clear All
+                        </button>
+                      </div>
+                    </div>
                     {currentQuestion.options?.map(opt => (
                     <button
                         key={opt.value.toString()}
@@ -1193,13 +1572,47 @@ function App() {
                     onClick={handleMultiSelectSubmit}
                     className="w-full p-4 bg-slate-900 text-white rounded-2xl font-bold text-lg shadow-lg hover:bg-slate-800 transition-all mt-2 active:scale-95 hover:shadow-xl"
                     aria-label={`Confirm selection of ${multiSelect.length} item${multiSelect.length !== 1 ? 's' : ''}`}
+                    disabled={multiSelect.length === 0}
                     >
-                    Confirm Selection ({multiSelect.length})
+                    {multiSelect.length === 0 ? 'Select at least one option' : `Confirm Selection (${multiSelect.length})`}
                     </button>
                 </div>
                 )}
 
-                {(currentQuestion?.type === 'text' || currentQuestion?.type === 'number') && (
+                {/* Temperature input - special formatting */}
+                {currentQuestion?.type === 'number' && currentQuestion.id.includes('temp') && (
+                <div className="flex space-x-3">
+                    <label htmlFor="temp-input" className="sr-only">Enter temperature in Fahrenheit</label>
+                    <div className="temp-input-wrapper flex-1">
+                      <input 
+                      id="temp-input"
+                      type="number" 
+                      value={textInput}
+                      onChange={(e) => setTextInput(e.target.value)}
+                      placeholder="98.6"
+                      min="90"
+                      max="110"
+                      step="0.1"
+                      inputMode="decimal"
+                      className="w-full p-4 rounded-2xl border border-slate-200 text-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent shadow-inner bg-slate-50"
+                      onKeyDown={(e) => e.key === 'Enter' && handleSubmitText()}
+                      autoFocus
+                      aria-label="Enter temperature in Fahrenheit"
+                      />
+                    </div>
+                    <button 
+                    onClick={handleSubmitText}
+                    className="px-6 bg-teal-600 text-white rounded-2xl font-bold shadow-lg hover:bg-teal-700 active:scale-95 transition-all"
+                    aria-label="Submit temperature"
+                    >
+                    <span className="hidden sm:inline">Submit</span>
+                    <span className="sm:hidden" aria-hidden="true">➜</span>
+                    </button>
+                </div>
+                )}
+                
+                {/* Regular text/number input (non-temperature) */}
+                {(currentQuestion?.type === 'text' || (currentQuestion?.type === 'number' && !currentQuestion.id.includes('temp'))) && (
                 <div className="flex space-x-3">
                     <label htmlFor="answer-input" className="sr-only">
                       {currentQuestion.type === 'number' ? 'Enter a number' : 'Type your answer'}
@@ -1211,6 +1624,7 @@ function App() {
                     onChange={(e) => setTextInput(e.target.value)}
                     placeholder={currentQuestion.type === 'number' ? "Enter number..." : "Type your answer..."}
                     min="0"
+                    inputMode={currentQuestion.type === 'number' ? 'numeric' : 'text'}
                     className="flex-1 p-4 rounded-2xl border border-slate-200 text-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent shadow-inner bg-slate-50"
                     onKeyDown={(e) => e.key === 'Enter' && handleSubmitText()}
                     autoFocus

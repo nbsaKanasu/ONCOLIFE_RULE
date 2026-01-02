@@ -5,12 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OncoLife Symptom Triage</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Healthcare-appropriate typography: IBM Plex Sans -->
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
       /* === Accessibility: Font Size Scaling === */
       :root {
         --font-scale: 1;
         --base-font-size: 16px;
+        /* Light mode colors */
+        --bg-primary: #f8fafc;
+        --bg-secondary: #ffffff;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+        --accent-primary: #0d9488;
+        --accent-secondary: #10b981;
+        --border-color: #e2e8f0;
+      }
+      
+      /* === Dark Mode Support === */
+      html.dark {
+        --bg-primary: #0f172a;
+        --bg-secondary: #1e293b;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --accent-primary: #14b8a6;
+        --accent-secondary: #34d399;
+        --border-color: #334155;
       }
       
       html {
@@ -22,7 +42,21 @@
       html.font-scale-large { --font-scale: 1.125; }
       html.font-scale-xlarge { --font-scale: 1.25; }
       
-      body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+      body { 
+        font-family: 'IBM Plex Sans', sans-serif; 
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
+        transition: background-color 0.3s ease, color 0.3s ease;
+      }
+      
+      /* Dark mode overrides for Tailwind classes */
+      html.dark .bg-white { background-color: var(--bg-secondary) !important; }
+      html.dark .bg-slate-50 { background-color: var(--bg-primary) !important; }
+      html.dark .text-slate-800, html.dark .text-slate-900 { color: var(--text-primary) !important; }
+      html.dark .text-slate-600, html.dark .text-slate-500, html.dark .text-slate-400 { color: var(--text-secondary) !important; }
+      html.dark .border-slate-100, html.dark .border-slate-200 { border-color: var(--border-color) !important; }
+      html.dark .bg-slate-100 { background-color: #334155 !important; }
+      html.dark .shadow-sm { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.3) !important; }
       
       /* === Accessibility: High-Contrast Focus Rings === */
       *:focus {
@@ -145,6 +179,150 @@
         clip: rect(0, 0, 0, 0);
         white-space: nowrap;
         border: 0;
+      }
+      
+      /* === Warm Hero Gradient === */
+      .hero-gradient {
+        background: linear-gradient(135deg, #0d9488 0%, #10b981 50%, #059669 100%);
+      }
+      
+      html.dark .hero-gradient {
+        background: linear-gradient(135deg, #134e4a 0%, #065f46 50%, #064e3b 100%);
+      }
+      
+      /* === Confirmation Dialog Overlay === */
+      .dialog-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(4px);
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        animation: fadeIn 0.2s ease-out;
+      }
+      
+      .dialog-box {
+        background: white;
+        border-radius: 1.5rem;
+        padding: 2rem;
+        max-width: 400px;
+        width: 90%;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        animation: slideUp 0.3s ease-out;
+      }
+      
+      html.dark .dialog-box {
+        background: var(--bg-secondary);
+      }
+      
+      @keyframes slideUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      
+      /* === Temperature Input Styling === */
+      .temp-input-wrapper {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+      }
+      
+      .temp-input-wrapper::after {
+        content: '°F';
+        position: absolute;
+        right: 1rem;
+        color: var(--text-secondary);
+        font-weight: 600;
+        pointer-events: none;
+      }
+      
+      .temp-input-wrapper input {
+        padding-right: 2.5rem !important;
+      }
+      
+      /* === Structured Vitals Input === */
+      .vitals-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+      }
+      
+      .vitals-field label {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-bottom: 0.25rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      
+      .vitals-field input {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        font-size: 1rem;
+        background: var(--bg-primary);
+      }
+      
+      /* === Pulse animation for reassurance === */
+      @keyframes gentlePulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+      }
+      
+      .gentle-pulse {
+        animation: gentlePulse 3s ease-in-out infinite;
+      }
+      
+      /* === Filter Pills === */
+      .filter-pill {
+        padding: 0.5rem 1rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        border: 1px solid transparent;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      
+      .filter-pill:hover {
+        transform: translateY(-1px);
+      }
+      
+      .filter-pill.active {
+        background: white;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+      
+      html.dark .filter-pill.active {
+        background: var(--bg-secondary);
+      }
+      
+      /* === Collapsible Section === */
+      .collapsible-header {
+        cursor: pointer;
+        user-select: none;
+      }
+      
+      .collapsible-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease-out;
+      }
+      
+      .collapsible-content.expanded {
+        max-height: 2000px;
+      }
+      
+      /* === Yes Button Prominence === */
+      .yes-button-prominent {
+        transform: scale(1.05);
+        box-shadow: 0 10px 25px -5px rgba(13, 148, 136, 0.4);
       }
     </style>
   <script type="importmap">

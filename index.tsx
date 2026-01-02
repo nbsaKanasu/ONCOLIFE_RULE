@@ -307,7 +307,7 @@ const ChatBubble: React.FC<{ message: Message }> = ({ message }) => {
             : 'bg-stone-100 text-stone-800 p-4 rounded-2xl rounded-tr-sm text-sm'
       }`}>
         {isBot && !message.isAlert && (
-          <span className="text-rose-200 text-xs font-medium block mb-1">Ruby</span>
+          <span className="text-teal-200 text-xs font-medium block mb-1">Ruby</span>
         )}
         {message.isAlert && <span className="sr-only">Alert: </span>}
         {message.content}
@@ -343,11 +343,11 @@ const SymptomCard: React.FC<{
         other: "hover:border-slate-400"
     };
     
-    const selectedStyle = isSelected ? "ring-2 ring-rose-500 bg-rose-50" : "";
+    const selectedStyle = isSelected ? "ring-2 ring-teal-500 bg-teal-50" : "";
     
     const iconBg = variant === 'emergency' 
       ? 'bg-red-50 text-red-600' 
-      : 'bg-rose-50 text-rose-600';
+      : 'bg-teal-50 text-teal-600';
 
     // Result badge styling
     const getResultBadge = (res: ActionLevel) => {
@@ -387,7 +387,7 @@ const SymptomCard: React.FC<{
             {badge}
             {isMultiSelectMode && (
                  <div 
-                   className={`absolute top-3 right-3 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-rose-600 border-rose-600' : 'border-stone-300 bg-white'}`}
+                   className={`absolute top-3 right-3 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-teal-600 border-teal-600' : 'border-stone-300 bg-white'}`}
                    aria-hidden="true"
                  >
                      {isSelected && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
@@ -1008,7 +1008,7 @@ function App() {
                 <div className="ruby-avatar w-9 h-9 text-base" aria-hidden="true">R</div>
                 <div>
                     <h1 className="font-semibold text-stone-800 text-base leading-tight">OncoLife</h1>
-                    <p className="text-rose-600 text-[10px] font-semibold">Ruby — Your Care Assistant</p>
+                    <p className="text-teal-600 text-[10px] font-semibold">Ruby — Your Care Assistant</p>
                 </div>
             </div>
             <div className="flex items-center space-x-2">
@@ -1117,7 +1117,7 @@ function App() {
                             <input 
                                 id="symptom-search"
                                 type="search" 
-                                className="block w-full pl-12 pr-4 py-3 rounded-xl text-stone-900 placeholder-stone-400 bg-stone-50 border border-stone-200 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 focus:outline-none text-sm transition-all"
+                                className="block w-full pl-12 pr-4 py-3 rounded-xl text-stone-900 placeholder-stone-400 bg-stone-50 border border-stone-200 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:outline-none text-sm transition-all"
                                 placeholder="Search symptoms..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -1573,7 +1573,7 @@ function App() {
                     </button>
                     <button 
                       onClick={() => handleAnswer(true)} 
-                      className="col-span-3 p-3.5 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 text-white font-semibold shadow-md hover:shadow-lg active:scale-98 transition-all"
+                      className="col-span-3 p-3.5 rounded-xl bg-gradient-to-r from-teal-600 to-teal-700 text-white font-semibold shadow-md hover:shadow-lg active:scale-98 transition-all"
                       aria-label="Answer Yes"
                     >
                       Yes
@@ -1587,7 +1587,7 @@ function App() {
                         <button 
                         key={opt.value.toString()} 
                         onClick={() => handleAnswer(opt.value)}
-                        className="p-4 rounded-xl border border-stone-200 text-left font-medium text-stone-700 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-800 transition-all active:scale-98 whitespace-normal"
+                        className="p-4 rounded-xl border border-stone-200 text-left font-medium text-stone-700 hover:bg-teal-50 hover:border-teal-200 hover:text-teal-800 transition-all active:scale-98 whitespace-normal"
                         role="radio"
                         aria-checked="false"
                         aria-label={`Select ${opt.label}`}

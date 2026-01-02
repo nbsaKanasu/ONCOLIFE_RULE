@@ -3,21 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OncoLife - Ruby Symptom Assistant</title>
+    <title>OncoLife - Ruby Care Assistant</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Warm, friendly typography -->
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-      /* === Ruby Warm Color Palette === */
+      /* === Calm Teal + Violet Palette === */
       :root {
         --font-scale: 1;
         --base-font-size: 16px;
         
-        /* Ruby Warm Palette - Professional yet Inviting */
-        --ruby: #be123c;
-        --ruby-dark: #9f1239;
-        --ruby-light: #e11d48;
-        --ruby-soft: #fda4af;
+        /* Primary - Warm Teal (calming, medical) */
+        --primary: #0d9488;
+        --primary-dark: #0f766e;
+        --primary-light: #14b8a6;
+        --primary-soft: #99f6e4;
+        
+        /* Accent - Soft Violet (caring, unique) */
+        --accent: #7c3aed;
+        --accent-light: #a78bfa;
+        --accent-soft: #ede9fe;
         
         /* Warm Neutrals */
         --warm-50: #fafaf9;
@@ -29,15 +34,11 @@
         --warm-800: #292524;
         --warm-900: #1c1917;
         
-        /* Accent - Warm Teal for balance */
-        --accent: #0d9488;
-        --accent-light: #14b8a6;
-        
         /* Backgrounds */
         --bg-primary: #fafaf9;
         --bg-secondary: #ffffff;
         --bg-tertiary: #f5f5f4;
-        --bg-ruby: #fff1f2;
+        --bg-accent: #f0fdfa;
         
         /* Text */
         --text-primary: #1c1917;
@@ -46,7 +47,7 @@
         
         /* Borders */
         --border-color: #e7e5e4;
-        --border-ruby: #fecdd3;
+        --border-accent: #99f6e4;
         
         /* Status Colors */
         --status-safe: #059669;
@@ -57,9 +58,12 @@
       
       /* === Dark Mode === */
       html.dark {
-        --ruby: #fb7185;
-        --ruby-dark: #f43f5e;
-        --ruby-light: #fda4af;
+        --primary: #2dd4bf;
+        --primary-dark: #14b8a6;
+        --primary-light: #5eead4;
+        
+        --accent: #a78bfa;
+        --accent-light: #c4b5fd;
         
         --warm-50: #1c1917;
         --warm-100: #292524;
@@ -70,14 +74,14 @@
         --bg-primary: #1c1917;
         --bg-secondary: #292524;
         --bg-tertiary: #44403c;
-        --bg-ruby: #4c0519;
+        --bg-accent: #134e4a;
         
         --text-primary: #fafaf9;
         --text-secondary: #d6d3d1;
         --text-muted: #78716c;
         
         --border-color: #44403c;
-        --border-ruby: #881337;
+        --border-accent: #115e59;
       }
       
       html {
@@ -103,19 +107,19 @@
       html.dark .text-stone-600, html.dark .text-stone-500, html.dark .text-stone-400 { color: var(--text-secondary) !important; }
       html.dark .border-stone-100, html.dark .border-stone-200 { border-color: var(--border-color) !important; }
       
-      /* === Focus States - Ruby accent === */
+      /* === Focus States === */
       *:focus { outline: none; }
       
       *:focus-visible {
-        outline: 2px solid var(--ruby) !important;
+        outline: 2px solid var(--primary) !important;
         outline-offset: 2px !important;
       }
       
       button:focus-visible,
       input:focus-visible {
-        outline: 2px solid var(--ruby) !important;
+        outline: 2px solid var(--primary) !important;
         outline-offset: 2px !important;
-        box-shadow: 0 0 0 4px rgba(190, 18, 60, 0.15) !important;
+        box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.15) !important;
       }
       
       .focus-emergency:focus-visible {
@@ -128,7 +132,7 @@
         position: absolute;
         top: -40px;
         left: 0;
-        background: var(--ruby-dark);
+        background: var(--primary-dark);
         color: white;
         padding: 8px 16px;
         z-index: 100;
@@ -198,7 +202,7 @@
       
       .dialog-box {
         background: white;
-        border-radius: 16px;
+        border-radius: 20px;
         padding: 24px;
         max-width: 400px;
         width: 90%;
@@ -226,7 +230,7 @@
       
       .temp-input-wrapper input { padding-right: 2.5rem !important; }
       
-      /* === Filter Pills - Ruby themed === */
+      /* === Filter Pills === */
       .filter-pill {
         padding: 8px 16px;
         border-radius: 20px;
@@ -241,15 +245,15 @@
       }
       
       .filter-pill:hover {
-        border-color: var(--ruby-soft);
-        color: var(--ruby);
-        background: var(--bg-ruby);
+        border-color: var(--primary-soft);
+        color: var(--primary);
+        background: var(--bg-accent);
       }
       
       .filter-pill.active {
-        background: var(--ruby);
+        background: var(--primary);
         color: white;
-        border-color: var(--ruby);
+        border-color: var(--primary);
       }
       
       /* === Collapsible === */
@@ -261,7 +265,7 @@
       
       .collapsible-content.expanded { max-height: 2000px; }
       
-      /* === Symptom Card - Warm and inviting === */
+      /* === Symptom Card === */
       .medical-card {
         background: var(--bg-secondary);
         border: 1px solid var(--border-color);
@@ -271,8 +275,8 @@
       }
       
       .medical-card:hover {
-        border-color: var(--ruby-soft);
-        box-shadow: 0 4px 20px rgba(190, 18, 60, 0.08);
+        border-color: var(--primary-soft);
+        box-shadow: 0 4px 20px rgba(13, 148, 136, 0.1);
         transform: translateY(-2px);
       }
       
@@ -280,50 +284,50 @@
       .badge-safe { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
       .badge-alert { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
       .badge-emergency { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
-      .badge-info { background: #fff1f2; color: #9f1239; border: 1px solid #fecdd3; }
+      .badge-info { background: #f0fdfa; color: #0f766e; border: 1px solid #99f6e4; }
       
-      /* === Ruby Primary Button === */
+      /* === Ruby Teal Button === */
       .btn-ruby {
-        background: linear-gradient(135deg, var(--ruby) 0%, var(--ruby-dark) 100%);
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
         color: white;
         font-weight: 600;
         padding: 14px 28px;
-        border-radius: 12px;
+        border-radius: 14px;
         transition: all 0.2s ease;
-        box-shadow: 0 4px 14px rgba(190, 18, 60, 0.25);
+        box-shadow: 0 4px 14px rgba(13, 148, 136, 0.3);
       }
       
       .btn-ruby:hover { 
         transform: translateY(-1px);
-        box-shadow: 0 6px 20px rgba(190, 18, 60, 0.35);
+        box-shadow: 0 6px 20px rgba(13, 148, 136, 0.4);
       }
       
       /* === Ruby Chat Bubble === */
       .ruby-bubble {
-        background: linear-gradient(135deg, var(--ruby) 0%, var(--ruby-dark) 100%);
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
         color: white;
-        border-radius: 20px 20px 20px 4px;
+        border-radius: 20px 20px 20px 6px;
         padding: 16px 20px;
         position: relative;
       }
       
       .ruby-avatar {
-        width: 32px;
-        height: 32px;
-        background: linear-gradient(135deg, var(--ruby) 0%, var(--ruby-dark) 100%);
-        border-radius: 50%;
+        width: 36px;
+        height: 36px;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        border-radius: 12px;
         display: flex;
         align-items: center;
         justify-content: center;
         color: white;
         font-weight: 700;
-        font-size: 14px;
-        box-shadow: 0 2px 8px rgba(190, 18, 60, 0.3);
+        font-size: 15px;
+        box-shadow: 0 2px 8px rgba(13, 148, 136, 0.3);
       }
       
-      /* === Ruby Header Gradient === */
+      /* === Ruby Header === */
       .ruby-header {
-        background: linear-gradient(135deg, var(--ruby) 0%, #881337 100%);
+        background: linear-gradient(135deg, var(--primary) 0%, #0f766e 50%, #115e59 100%);
       }
       
       /* === Reduced Motion === */

@@ -373,10 +373,10 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       screeningQuestions: [
           { id: 'site_signs', text: 'Is there any new redness, swelling, or drainage at your port or IV site?', type: 'yes_no' },
           { id: 'site_pain', text: 'Is the site painful to the touch or feeling hot?', type: 'yes_no' },
-          { id: 'temp', text: 'What is your temperature? (Number only)', type: 'number' }
+          { id: 'port_temp', text: 'What is your temperature? (Number only)', type: 'number' }
       ],
       evaluateScreening: (answers) => {
-          const t = parseFloat(answers['temp']);
+          const t = parseFloat(answers['port_temp']);
           const hasFever = !isNaN(t) && t > 100.3;
           const hasSigns = answers['site_signs'] === true || answers['site_pain'] === true;
           
@@ -735,10 +735,10 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
           { id: 'swallow_pain', text: 'Are you having any pain when you swallow?', type: 'yes_no' },
           { id: 'dehydration_signs', text: 'Any signs of dehydration?', type: 'multiselect', options: DEHYDRATION_SIGNS_OPTIONS },
           { id: 'vitals_input', text: 'Please enter your Heart Rate and/or Blood Pressure (e.g., HR: 95, BP: 110/70):', type: 'text', condition: (a) => a['dehydration_signs']?.includes('vitals_known') },
-          { id: 'temp', text: 'What is your temperature? (Number)', type: 'number' }
+          { id: 'mouth_temp', text: 'What is your temperature? (Number)', type: 'number' }
       ],
       evaluateFollowUp: (answers) => {
-          const t = parseFloat(answers['temp']);
+          const t = parseFloat(answers['mouth_temp']);
           if (!isNaN(t) && t > 100.3) return { action: 'branch', branchToSymptomId: 'FEV-202' };
           const dehy = answers['dehydration_signs'] || [];
           const dehyKeys = DEHYDRATION_SIGNS_OPTIONS.map(o => o.value).filter(v => v !== 'none' && v !== 'vitals_known');
@@ -831,14 +831,14 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
           { id: 'face_breath', text: 'Is there any trouble breathing?', type: 'yes_no', condition: (a) => a['loc']?.includes('face') },
           { id: 'coverage', text: 'Does the rash cover more than 30% of your body?', type: 'yes_no' },
           { id: 'adl', text: 'Does the rash affect your daily activities (ADLs)?', type: 'yes_no' },
-          { id: 'temp', text: 'What is your temperature?', type: 'number' },
+          { id: 'rash_temp', text: 'What is your temperature?', type: 'number' },
           { id: 'severity', text: 'Rate your rash', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]}
       ],
       evaluateScreening: (answers) => {
           if (answers['face_breath'] === true) return { action: 'stop', triageLevel: 'call_911', triageMessage: 'Facial Rash with Breathing Difficulty.' };
           
           const inf = answers['infusion_sx'] || [];
-          const t = parseFloat(answers['temp']);
+          const t = parseFloat(answers['rash_temp']);
           const infusionIssue = inf.includes('swelling') || inf.includes('wound');
           const adlIssue = answers['adl'] === true;
           const feverIssue = !isNaN(t) && t > 100.3;
@@ -879,7 +879,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
           { id: 'loc_other', text: 'Please describe the location:', type: 'text', condition: (a) => a['loc']?.includes('other') },
           { id: 'severity', text: 'Rate your pain', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]},
           { id: 'interfere', text: 'Does it interfere with daily activities?', type: 'yes_no' },
-          { id: 'temp', text: 'What is your temperature? (Number)', type: 'number' }
+          { id: 'pain_temp', text: 'What is your temperature? (Number)', type: 'number' }
       ],
       evaluateScreening: (answers) => {
           const loc = answers['loc'] || [];
@@ -893,7 +893,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
           if (loc.includes('mouth')) return { action: 'branch', branchToSymptomId: 'MSO-208' };
           if (loc.includes('nerve')) return { action: 'branch', branchToSymptomId: 'NEU-216' };
           
-          const t = parseFloat(answers['temp']);
+          const t = parseFloat(answers['pain_temp']);
           const fever = !isNaN(t) && t > 100.3;
           
           if (answers['severity'] === 'sev' || answers['severity'] === 'mod' || fever) {
@@ -938,7 +938,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       icon: Icons.Cough,
       screeningQuestions: [
           { id: 'days', text: 'How long have you had the cough?', type: 'choice', options: DURATION_OPTIONS_SHORT },
-          { id: 'temp', text: 'What is your temperature?', type: 'number' },
+          { id: 'cough_temp', text: 'What is your temperature?', type: 'number' },
           { id: 'mucus', text: 'Is there any mucus with your cough?', type: 'yes_no' },
           { id: 'meds', text: 'What medications have you used to help with your cough?', type: 'choice', options: MEDS_COUGH },
           { id: 'helping', text: 'Is it helping?', type: 'yes_no', condition: (a) => a['meds'] !== 'none' },
@@ -953,7 +953,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
               return { action: 'stop', triageLevel: 'call_911', triageMessage: 'Chest Pain/Shortness of Breath detected.' };
           }
           const o2 = parseFloat(answers['o2']);
-          const temp = parseFloat(answers['temp']);
+          const temp = parseFloat(answers['cough_temp']);
           const lowO2 = !isNaN(o2) && o2 < 92;
           const highTemp = !isNaN(temp) && temp > 100.3;
 

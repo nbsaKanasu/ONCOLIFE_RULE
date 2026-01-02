@@ -44,6 +44,31 @@ export const isHigherSeverity = (current: ActionLevel, newLevel: ActionLevel): b
     return levels.indexOf(newLevel) > levels.indexOf(current);
 };
 
+// Helper to parse vitals from text input and check for concerning values
+export const parseVitalsFromText = (vitalsText: string): { hrHigh: boolean; bpLow: boolean } => {
+    if (!vitalsText) return { hrHigh: false, bpLow: false };
+    
+    const text = vitalsText.toLowerCase();
+    let hrHigh = false;
+    let bpLow = false;
+    
+    // Try to extract HR value
+    const hrMatch = text.match(/hr[:\s]*(\d+)/i) || text.match(/heart\s*rate[:\s]*(\d+)/i) || text.match(/pulse[:\s]*(\d+)/i);
+    if (hrMatch) {
+        const hr = parseInt(hrMatch[1]);
+        if (!isNaN(hr) && hr > 100) hrHigh = true;
+    }
+    
+    // Try to extract BP systolic value
+    const bpMatch = text.match(/bp[:\s]*(\d+)/i) || text.match(/blood\s*pressure[:\s]*(\d+)/i) || text.match(/(\d+)\s*\/\s*\d+/);
+    if (bpMatch) {
+        const sbp = parseInt(bpMatch[1]);
+        if (!isNaN(sbp) && sbp < 100) bpLow = true;
+    }
+    
+    return { hrHigh, bpLow };
+};
+
 // --- STANDARDIZED CONSTANTS ---
 
 export const ORAL_INTAKE_OPTIONS: Option[] = [
@@ -54,12 +79,21 @@ export const ORAL_INTAKE_OPTIONS: Option[] = [
     {label: 'I can eat and drink normally', value: 'normal'}
 ];
 
+// 12-hour specific version for Vomiting module
+export const ORAL_INTAKE_OPTIONS_12H: Option[] = [
+    {label: 'I have a reduced appetite but can still eat and drink', value: 'reduced'},
+    {label: 'I have had difficulty keeping food or fluids down', value: 'difficulty'},
+    {label: 'I can barely eat or drink anything', value: 'barely'},
+    {label: 'I have not been able to eat or drink in the last 12 hours', value: 'none'},
+    {label: 'I can eat and drink normally', value: 'normal'}
+];
+
 export const DEHYDRATION_SIGNS_OPTIONS: Option[] = [
-    {label: 'Very dark urine', value: 'dark_urine'},
-    {label: 'Amount of urine is a lot less over last 12 hours', value: 'less_urine'},
-    {label: 'Very thirsty', value: 'thirsty'},
-    {label: 'Lightheaded', value: 'lightheaded'},
-    {label: 'HR >100 or BP <100', value: 'vitals'},
+    {label: 'Dark urine', value: 'dark_urine'},
+    {label: 'Reduced urination for over 12 hours', value: 'less_urine'},
+    {label: 'Constantly feeling thirsty', value: 'thirsty'},
+    {label: 'Feeling lightheaded', value: 'lightheaded'},
+    {label: 'I know my Heart Rate/Blood Pressure', value: 'vitals_known'},
     {label: 'None of the above', value: 'none'}
 ];
 
@@ -172,7 +206,8 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
         { id: 'stool_urine', text: 'Do you have any blood in your stool or urine?', type: 'yes_no' },
         { id: 'injury', text: 'Did you injure yourself?', type: 'yes_no' },
         { id: 'thinners', text: 'Are you on blood thinners?', type: 'yes_no' },
-        { id: 'location', text: 'Is the bruising in one area or all over?', type: 'choice', options: [{label: 'One Area', value: 'one'}, {label: 'All Over', value: 'all'}] },
+        { id: 'location', text: 'Is the bruising in one area or all over?', type: 'choice', options: [{label: 'One Area', value: 'one'}, {label: 'All Over', value: 'all'}, {label: 'Other', value: 'other'}] },
+        { id: 'location_other', text: 'Please describe:', type: 'text', condition: (a) => a['location'] === 'other' },
     ],
     evaluateScreening: (answers) => {
         if (answers['pressure'] === true || answers['stool_urine'] === true) {
@@ -224,8 +259,10 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
               {label: 'One arm or leg feels weak, heavy, or harder to move than the other', value: 'weakness'},
               {label: 'Trouble walking or keeping your balance', value: 'balance'},
               {label: 'Confusion or trouble staying awake', value: 'confusion'},
+              {label: 'Other', value: 'other'},
               {label: 'None', value: 'none'}
-          ]}
+          ]},
+          { id: 'neuro_symptoms_other', text: 'Please describe the other symptom:', type: 'text', condition: (a) => a['neuro_symptoms']?.includes('other') }
       ],
       evaluateScreening: (answers) => {
           const symps = answers['neuro_symptoms'] || [];
@@ -248,8 +285,10 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
               {label: 'Belly swollen/hard', value: 'swollen'},
               {label: 'Repeated vomiting', value: 'vomit'},
               {label: 'Cannot pass gas/stool', value: 'blockage'},
+              {label: 'Other', value: 'other'},
               {label: 'None', value: 'none'}
-          ]}
+          ]},
+          { id: 'red_flags_other', text: 'Please describe:', type: 'text', condition: (a) => a['red_flags']?.includes('other') }
       ],
       evaluateScreening: (answers) => {
           const score = parseInt(answers['pain_scale']);
@@ -267,15 +306,24 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       hidden: true,
       icon: Icons.Leg,
       screeningQuestions: [
-          { id: 'swollen_one_leg', text: 'Is one leg more swollen, red, warm, or painful than the other?', type: 'yes_no' },
-          { id: 'worse_walk', text: 'Does the pain get worse when you walk or press on the calf?', type: 'yes_no' },
-          { id: 'pain_sev', text: 'Rate your pain', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]}
+          { id: 'swollen_one_leg', text: 'Is one leg significantly more swollen, red, warm, or painful than the other?', type: 'yes_no' },
+          { id: 'worse_walk', text: 'Does the pain get worse when you walk or when you press on your calf?', type: 'yes_no' }
       ],
       evaluateScreening: (answers) => {
           if (answers['swollen_one_leg'] === true || answers['worse_walk'] === true) {
-              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Signs of DVT (One leg swollen/painful).' };
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Signs of DVT (One leg significantly more swollen/painful).' };
           }
-           return { action: 'continue', triageLevel: 'refer_provider', triageMessage: 'Leg pain reported.' };
+          return { action: 'stop', triageLevel: 'none', triageMessage: 'Leg pain reported - no DVT signs.' };
+      },
+      followUpQuestions: [
+          { id: 'onset', text: 'When did this start?', type: 'text' },
+          { id: 'sob_chest', text: 'Are you experiencing any sudden shortness of breath or chest pain?', type: 'yes_no' }
+      ],
+      evaluateFollowUp: (answers) => {
+          if (answers['sob_chest'] === true) {
+              return { action: 'stop', triageLevel: 'call_911', triageMessage: 'Leg pain with sudden shortness of breath or chest pain - possible PE.' };
+          }
+          return { action: 'continue' };
       }
   },
   'URG-112': {
@@ -285,48 +333,103 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       hidden: true,
       icon: Icons.Joint,
       screeningQuestions: [
-           { id: 'controlled', text: 'Is it controlled with your usual pain medicine?', type: 'yes_no' },
-           { id: 'mobility', text: 'Is your pain making it hard to move around or sleep?', type: 'yes_no' }
+           { id: 'mobility', text: 'Is your pain making it hard to move around or sleep?', type: 'yes_no' },
+           { id: 'controlled', text: 'Is the pain controlled with your usual pain medicine?', type: 'yes_no' }
       ],
       evaluateScreening: (answers) => {
-           if (answers['controlled'] === false || answers['mobility'] === true) return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Uncontrolled Pain or affects Mobility/Sleep.' };
-           return { action: 'continue' };
+           // Alert: Hard to move/sleep OR NOT controlled
+           if (answers['mobility'] === true || answers['controlled'] === false) {
+               return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'Pain affects mobility/sleep or not controlled with usual medicine.' };
+           }
+           // Non-urgent: Controlled and no sleep/movement impact
+           return { action: 'stop', triageLevel: 'none', triageMessage: 'Please let your care team know about these symptoms at your next appointment. If the pain prevents movement, please return and update me.' };
       }
   },
   'URG-113': {
       id: 'URG-113',
-      name: 'General Aches',
+      name: 'General Aches & Fatigue',
       category: 'other',
       hidden: true,
       icon: Icons.Ache,
       screeningQuestions: [
-           { id: 'better', text: 'Does it get better with rest/meds?', type: 'yes_no' },
-           { id: 'adl', text: 'Has pain affected your ability to bathe/dress?', type: 'yes_no' }
+           { id: 'better', text: 'Does the fatigue or aching get better with rest, hydration, or over-the-counter medicine?', type: 'yes_no' },
+           { id: 'adl', text: 'Has the fatigue affected your ability to bathe, dress, or feed yourself without help?', type: 'yes_no' }
       ],
       evaluateScreening: (answers) => {
-           if (answers['adl'] === true || answers['better'] === false) return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'ADLs affected or not improving.' };
-           return { action: 'continue' };
+           // Alert: NO to Q1 (Doesn't get better) OR YES to Q2 (Can't perform ADLs)
+           if (answers['better'] === false || answers['adl'] === true) {
+               return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'Fatigue is common, but inability to perform self-care is a priority for your care team.' };
+           }
+           // Non-urgent: YES to Q1 AND NO to Q2
+           return { action: 'stop', triageLevel: 'none', triageMessage: 'Fatigue reported but manageable with rest/hydration.' };
       }
   },
   'URG-114': {
       id: 'URG-114',
-      name: 'Port Site Pain',
+      name: 'Port/IV Site',
       category: 'other',
       hidden: true,
       icon: Icons.Port,
       screeningQuestions: [
-          { id: 'redness', text: 'Is the area red?', type: 'yes_no' },
-          { id: 'drainage', text: 'Is there any drainage?', type: 'yes_no' },
-          { id: 'chills', text: 'Do you have chills?', type: 'yes_no' },
+          { id: 'site_signs', text: 'Is there any new redness, swelling, or drainage at your port or IV site?', type: 'yes_no' },
+          { id: 'site_pain', text: 'Is the site painful to the touch or feeling hot?', type: 'yes_no' },
           { id: 'temp', text: 'What is your temperature? (Number only)', type: 'number' }
       ],
       evaluateScreening: (answers) => {
           const t = parseFloat(answers['temp']);
-          const signs = answers['redness'] === true || answers['drainage'] === true || answers['chills'] === true;
-          if (signs || (!isNaN(t) && t > 100.3)) {
-              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'Port site infection signs or Fever.' };
+          const hasFever = !isNaN(t) && t > 100.3;
+          const hasSigns = answers['site_signs'] === true || answers['site_pain'] === true;
+          
+          // If port/IV site issue COMBINED with Fever → URGENT escalation
+          if (hasSigns && hasFever) {
+              return { action: 'stop', triageLevel: 'call_911', triageMessage: 'Port/IV site infection signs WITH Fever - URGENT. Contact care team immediately or go to ER.' };
           }
-           return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Port site pain reported.' };
+          
+          // Alert: YES to either site question
+          if (hasSigns) {
+              return { action: 'stop', triageLevel: 'notify_care_team', triageMessage: 'Port/IV site shows signs of possible infection (redness, swelling, drainage, pain, or heat).' };
+          }
+          
+          // Check for fever alone - branch to Fever module
+          if (hasFever) {
+              return { action: 'branch', branchToSymptomId: 'FEV-202' };
+          }
+          
+          return { action: 'stop', triageLevel: 'none', triageMessage: 'Port/IV site checked - no concerning signs.' };
+      }
+  },
+  // --- NEW: Falls & Balance (NEU-304) ---
+  'NEU-304': {
+      id: 'NEU-304',
+      name: 'Falls & Balance',
+      category: 'other',
+      hidden: true,
+      icon: Icons.Brain,
+      screeningQuestions: [
+          { id: 'falls', text: 'Have you had any falls since your last visit?', type: 'yes_no' },
+          { id: 'neuro_signs', text: 'Are you experiencing any new dizziness, confusion, or trouble with your balance?', type: 'yes_no' }
+      ],
+      evaluateScreening: (answers) => {
+          // Alert: YES to either question
+          if (answers['falls'] === true || answers['neuro_signs'] === true) {
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Falls or new neurological symptoms (dizziness, confusion, balance issues).' };
+          }
+          return { action: 'stop', triageLevel: 'none', triageMessage: 'No falls or balance issues reported.' };
+      },
+      followUpQuestions: [
+          { id: 'head_hit', text: 'Did you hit your head?', type: 'yes_no', condition: (a) => a['falls'] === true },
+          { id: 'blood_thinners', text: 'Are you currently on any blood thinners?', type: 'yes_no', condition: (a) => a['falls'] === true }
+      ],
+      evaluateFollowUp: (answers) => {
+          // High Priority Alert: Head hit + blood thinners
+          if (answers['head_hit'] === true && answers['blood_thinners'] === true) {
+              return { action: 'stop', triageLevel: 'call_911', triageMessage: 'HIGH PRIORITY: Fall with head injury while on blood thinners - immediate evaluation required.' };
+          }
+          // Standard head injury still concerning
+          if (answers['head_hit'] === true) {
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Fall with head injury - needs evaluation.' };
+          }
+          return { action: 'continue' };
       }
   },
 
@@ -359,12 +462,14 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
     screeningQuestions: [
       { id: 'temp', text: 'Fever can be worrying. What is your temperature? (Enter number, e.g., 101.5)', type: 'number' },
       { id: 'high_temp_symptoms', text: 'Please select any additional symptoms:', type: 'multiselect', options: [
-            {label: 'Rapid Heart Rate', value: 'hr'}, {label: 'Nausea', value: 'nausea'}, {label: 'Vomiting', value: 'vomit'}, 
+            {label: 'Heart rate > 100', value: 'hr'}, {label: 'Nausea', value: 'nausea'}, {label: 'Vomiting', value: 'vomit'}, 
             {label: 'Abdominal Pain', value: 'abd_pain'}, {label: 'Diarrhea', value: 'diarrhea'}, {label: 'Port Redness', value: 'port'}, {label: 'Cough', value: 'cough'},
             {label: 'Dizziness', value: 'dizzy'}, {label: 'Confusion', value: 'confusion'}, {label: 'Burning at urination', value: 'burning'},
+            {label: 'Other', value: 'other'},
             {label: 'None', value: 'none'}
         ], condition: (a) => parseFloat(a['temp']) > 100.3 
-      }
+      },
+      { id: 'high_temp_symptoms_other', text: 'Please describe the other symptom:', type: 'text', condition: (a) => parseFloat(a['temp']) > 100.3 && a['high_temp_symptoms']?.includes('other') }
     ],
     evaluateScreening: (answers) => {
       const t = parseFloat(answers['temp']);
@@ -402,12 +507,14 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       { id: 'severity_post_meds', text: 'Rate your nausea after taking medication:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}], condition: (a) => a['meds'] !== 'none' }
     ],
     evaluateScreening: (answers) => {
-       const intakeBad = answers['intake'] === 'none' || answers['intake'] === 'barely' || answers['intake'] === 'difficulty';
-       const sevBad = answers['severity_post_meds'] === 'sev';
-       const modChronic = answers['severity_post_meds'] === 'mod' && answers['days'] === '>3d' && answers['trend'] === 'bad';
+       // Alert: Oral intake "Barely eat/drink" or "Nothing for 24 hours"
+       const intakeBad = answers['intake'] === 'none' || answers['intake'] === 'barely';
+       
+       // Alert: Duration ≥ 3 days AND (Worsening or Same)
+       const chronicWorsening = answers['days'] === '>3d' && answers['trend'] === 'bad';
 
-       if (intakeBad || sevBad || modChronic) {
-           return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Intake Issue OR Severe Nausea OR Moderate for ≥3 days Worsening.' };
+       if (intakeBad || chronicWorsening) {
+           return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Oral intake barely/none OR Duration ≥3 days and worsening/same.' };
        }
        return { action: 'continue' };
     },
@@ -415,13 +522,21 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
         { id: 'vomiting_check', text: 'Have you vomited?', type: 'yes_no' },
         { id: 'abd_pain', text: 'Do you have abdominal pain or cramping?', type: 'yes_no' },
         { id: 'dehydration_signs', text: 'Any signs of dehydration?', type: 'multiselect', options: DEHYDRATION_SIGNS_OPTIONS },
+        { id: 'vitals_input', text: 'Please enter your Heart Rate and/or Blood Pressure (e.g., HR: 95, BP: 110/70):', type: 'text', condition: (a) => a['dehydration_signs']?.includes('vitals_known') },
         { id: 'adl', text: 'Are you able to perform daily self care like bathing and dressing yourself?', type: 'yes_no' }
     ],
     evaluateFollowUp: (answers) => {
         if (answers['vomiting_check'] === true) return { action: 'branch', branchToSymptomId: 'VOM-204' };
         
         const symps = answers['dehydration_signs'] || [];
-        const dehyKeys = DEHYDRATION_SIGNS_OPTIONS.map(o => o.value).filter(v => v !== 'none');
+        const dehyKeys = DEHYDRATION_SIGNS_OPTIONS.map(o => o.value).filter(v => v !== 'none' && v !== 'vitals_known');
+        
+        // Check for vitals concern if they provided vitals
+        if (symps.includes('vitals_known') && answers['vitals_input']) {
+            const vitals = parseVitalsFromText(answers['vitals_input']);
+            if (vitals.hrHigh || vitals.bpLow) return { action: 'branch', branchToSymptomId: 'DEH-201' };
+        }
+        
         if (symps.some((s: string) => dehyKeys.includes(s))) return { action: 'branch', branchToSymptomId: 'DEH-201' };
         return { action: 'continue' };
     }
@@ -434,7 +549,7 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       screeningQuestions: [
           { id: 'days', text: 'How many days have you been vomiting?', type: 'number' },
           { id: 'vom_freq', text: 'How many times have you vomited in the last 24 hours?', type: 'choice', options: [{label: '1-2 times', value: 'low'}, {label: '3-5 times', value: 'med'}, {label: '>6 times', value: 'high'}]},
-          { id: 'intake', text: 'How is your oral intake over the last 12 hours?', type: 'choice', options: ORAL_INTAKE_OPTIONS },
+          { id: 'intake', text: 'How is your oral intake over the last 12 hours?', type: 'choice', options: ORAL_INTAKE_OPTIONS_12H },
           { id: 'meds', text: 'What medications for vomiting are you taking?', type: 'choice', options: MEDS_NAUSEA },
           { id: 'med_freq', text: 'How often are you taking them?', type: 'text', condition: (a) => a['meds'] === 'other' },
           { id: 'severity_post_med', text: 'Rate your vomiting after taking medication:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}], condition: (a) => a['meds'] !== 'none' }
@@ -450,11 +565,9 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       },
       followUpQuestions: [
           { id: 'abd_pain', text: 'Do you have abdominal pain or cramping?', type: 'yes_no' },
-          { id: 'adl', text: 'Are you able to perform daily self care?', type: 'yes_no' },
-          { id: 'has_constipation', text: 'Do you also have constipation?', type: 'yes_no' }
+          { id: 'adl', text: 'Are you able to perform daily self care?', type: 'yes_no' }
       ],
       evaluateFollowUp: (answers) => {
-          if (answers['has_constipation'] === true) return { action: 'branch', branchToSymptomId: 'CON-210' };
           return { action: 'continue' };
       }
   },
@@ -464,35 +577,47 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       category: 'common',
       icon: Icons.Poop,
       screeningQuestions: [
-          { id: 'days', text: 'How many days have you had diarrhea?', type: 'number' },
-          { id: 'trend', text: 'Is it worsening or the same?', type: 'choice', options: [{label: 'Worsening/Same', value: 'bad'}, {label: 'Improving', value: 'good'}], condition: (a) => parseFloat(a['days']) > 3 },
+          { id: 'preface', text: 'Now let\'s talk about your diarrhea. How many days have you had diarrhea?', type: 'number' },
+          { id: 'trend', text: 'Is it worsening or the same?', type: 'choice', options: [{label: 'Worsening/Same', value: 'bad'}, {label: 'Improving', value: 'good'}], condition: (a) => parseFloat(a['preface']) >= 3 },
           { id: 'stools', text: 'How many loose stools have you had in the last 24 hours?', type: 'number' },
           { id: 'stool_type', text: 'Are you experiencing any of these?', type: 'multiselect', options: [
-              {label: 'My stool is black', value: 'black'}, {label: 'My stool has blood', value: 'blood'}, {label: 'My stool has mucus', value: 'mucus'}, {label: 'None of the above', value: 'none'}
+              {label: 'My stool is black', value: 'black'}, {label: 'My stool has blood', value: 'blood'}, {label: 'My stool has mucus', value: 'mucus'}, {label: 'Other', value: 'other'}, {label: 'None of the above', value: 'none'}
           ]},
+          { id: 'stool_type_other', text: 'Please describe:', type: 'text', condition: (a) => a['stool_type']?.includes('other') },
           { id: 'abd_pain', text: 'Are you having any abdominal pain or cramping?', type: 'yes_no' },
           { id: 'abd_pain_sev', text: 'Rate your abdominal pain:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}], condition: (a) => a['abd_pain'] === true },
           { id: 'meds', text: 'What medications for diarrhea are you taking?', type: 'choice', options: MEDS_DIARRHEA },
           { id: 'med_freq', text: 'How often are you taking them?', type: 'text', condition: (a) => a['meds'] === 'other' },
           { id: 'severity_post_med', text: 'Rate your diarrhea after medication:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}], condition: (a) => a['meds'] !== 'none' },
           { id: 'dehydration_signs', text: 'Any signs of dehydration?', type: 'multiselect', options: DEHYDRATION_SIGNS_OPTIONS },
+          { id: 'vitals_input', text: 'Please enter your Heart Rate and/or Blood Pressure (e.g., HR: 95, BP: 110/70):', type: 'text', condition: (a) => a['dehydration_signs']?.includes('vitals_known') },
           { id: 'intake', text: 'Able to eat/drink normally?', type: 'choice', options: ORAL_INTAKE_OPTIONS }
       ],
       evaluateScreening: (answers) => {
           const stools = parseFloat(answers['stools']);
           const types = answers['stool_type'] || [];
           const dehy = answers['dehydration_signs'] || [];
+          const days = parseFloat(answers['preface']);
           
+          // Alert: >5 loose stools/day
           if (stools > 5) return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: '>5 loose stools/day reported.' };
-          if (answers['abd_pain_sev'] === 'mod' || answers['abd_pain_sev'] === 'sev') return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Moderate/Severe abdominal pain reported.' };
-          if (types.includes('black') || types.includes('blood') || types.includes('mucus')) return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Bloody/Black/Mucus Stool reported.' };
-          if ((dehy.length > 0 && !dehy.includes('none')) || answers['intake'] === 'none') return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Dehydration signs or No Intake.' };
-          if (answers['severity_post_med'] === 'sev') return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Severe Diarrhea despite meds.' };
           
-          // Logic for Moderate > 3 days worsening
-          if (answers['severity_post_med'] === 'mod' && parseFloat(answers['days']) > 3 && answers['trend'] === 'bad') {
-              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Moderate Diarrhea > 3 days and worsening.' };
+          // Alert: Bloody/Black/Mucus stool
+          if (types.includes('black') || types.includes('blood') || types.includes('mucus')) return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Bloody/Black/Mucus Stool reported.' };
+          
+          // Alert: Moderate Pain ≥ 3 days AND (Worsening/Same)
+          if (answers['abd_pain_sev'] === 'mod' && !isNaN(days) && days >= 3 && answers['trend'] === 'bad') {
+              return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Moderate abdominal pain for ≥3 days and worsening/same.' };
           }
+          
+          // Alert: Severe abdominal pain
+          if (answers['abd_pain_sev'] === 'sev') return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Severe abdominal pain reported.' };
+          
+          // Alert: Dehydration signs or no intake
+          if ((dehy.length > 0 && !dehy.includes('none')) || answers['intake'] === 'none') return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Dehydration signs or No Intake.' };
+          
+          // Alert: Severe diarrhea despite meds
+          if (answers['severity_post_med'] === 'sev') return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Severe Diarrhea despite meds.' };
           
           return { action: 'continue' };
       },
@@ -501,7 +626,15 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       ],
       evaluateFollowUp: (answers) => {
           const dehy = answers['dehydration_signs'] || [];
-          if (dehy.length > 0 && !dehy.includes('none')) return { action: 'branch', branchToSymptomId: 'DEH-201' };
+          const dehyKeys = DEHYDRATION_SIGNS_OPTIONS.map(o => o.value).filter(v => v !== 'none' && v !== 'vitals_known');
+          
+          // Check for vitals concern
+          if (dehy.includes('vitals_known') && answers['vitals_input']) {
+              const vitals = parseVitalsFromText(answers['vitals_input']);
+              if (vitals.hrHigh || vitals.bpLow) return { action: 'branch', branchToSymptomId: 'DEH-201' };
+          }
+          
+          if (dehy.some((s: string) => dehyKeys.includes(s))) return { action: 'branch', branchToSymptomId: 'DEH-201' };
           return { action: 'continue' };
       }
   },
@@ -533,12 +666,21 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
           { id: 'abd_pain', text: 'Are you having any abdominal pain?', type: 'yes_no' },
           { id: 'abd_pain_sev', text: 'Rate abdominal pain:', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}], condition: (a) => a['abd_pain'] === true },
           { id: 'meds', text: 'What stool softeners or medications are you taking?', type: 'text' },
-          { id: 'dehydration_signs', text: 'Are you having any signs of dehydration?', type: 'multiselect', options: DEHYDRATION_SIGNS_OPTIONS }
+          { id: 'dehydration_signs', text: 'Are you having any signs of dehydration?', type: 'multiselect', options: DEHYDRATION_SIGNS_OPTIONS },
+          { id: 'vitals_input', text: 'Please enter your Heart Rate and/or Blood Pressure (e.g., HR: 95, BP: 110/70):', type: 'text', condition: (a) => a['dehydration_signs']?.includes('vitals_known') }
       ],
       evaluateFollowUp: (answers) => {
           if (answers['abd_pain_sev'] === 'mod' || answers['abd_pain_sev'] === 'sev') return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Constipation with Mod/Severe Pain.' };
           const dehy = answers['dehydration_signs'] || [];
-          if (dehy.length > 0 && !dehy.includes('none')) return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Constipation with Dehydration.' };
+          const dehyKeys = DEHYDRATION_SIGNS_OPTIONS.map(o => o.value).filter(v => v !== 'none' && v !== 'vitals_known');
+          
+          // Check for vitals concern
+          if (dehy.includes('vitals_known') && answers['vitals_input']) {
+              const vitals = parseVitalsFromText(answers['vitals_input']);
+              if (vitals.hrHigh || vitals.bpLow) return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Constipation with concerning vitals.' };
+          }
+          
+          if (dehy.some((s: string) => dehyKeys.includes(s))) return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Constipation with Dehydration.' };
           return { action: 'continue' };
       }
   },
@@ -592,13 +734,22 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       followUpQuestions: [
           { id: 'swallow_pain', text: 'Are you having any pain when you swallow?', type: 'yes_no' },
           { id: 'dehydration_signs', text: 'Any signs of dehydration?', type: 'multiselect', options: DEHYDRATION_SIGNS_OPTIONS },
+          { id: 'vitals_input', text: 'Please enter your Heart Rate and/or Blood Pressure (e.g., HR: 95, BP: 110/70):', type: 'text', condition: (a) => a['dehydration_signs']?.includes('vitals_known') },
           { id: 'temp', text: 'What is your temperature? (Number)', type: 'number' }
       ],
       evaluateFollowUp: (answers) => {
           const t = parseFloat(answers['temp']);
           if (!isNaN(t) && t > 100.3) return { action: 'branch', branchToSymptomId: 'FEV-202' };
           const dehy = answers['dehydration_signs'] || [];
-          if (dehy.length > 0 && !dehy.includes('none')) return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Dehydration signs present.' };
+          const dehyKeys = DEHYDRATION_SIGNS_OPTIONS.map(o => o.value).filter(v => v !== 'none' && v !== 'vitals_known');
+          
+          // Check for vitals concern
+          if (dehy.includes('vitals_known') && answers['vitals_input']) {
+              const vitals = parseVitalsFromText(answers['vitals_input']);
+              if (vitals.hrHigh || vitals.bpLow) return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Concerning vitals present.' };
+          }
+          
+          if (dehy.some((s: string) => dehyKeys.includes(s))) return { action: 'continue', triageLevel: 'notify_care_team', triageMessage: 'Dehydration signs present.' };
           return { action: 'continue' };
       }
   },
@@ -619,11 +770,20 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       },
       followUpQuestions: [
           { id: 'swallow_pain', text: 'Is it painful to swallow?', type: 'yes_no' },
-          { id: 'dehydration_signs', text: 'Any signs of dehydration?', type: 'multiselect', options: DEHYDRATION_SIGNS_OPTIONS }
+          { id: 'dehydration_signs', text: 'Any signs of dehydration?', type: 'multiselect', options: DEHYDRATION_SIGNS_OPTIONS },
+          { id: 'vitals_input', text: 'Please enter your Heart Rate and/or Blood Pressure (e.g., HR: 95, BP: 110/70):', type: 'text', condition: (a) => a['dehydration_signs']?.includes('vitals_known') }
       ],
       evaluateFollowUp: (answers) => {
           const dehy = answers['dehydration_signs'] || [];
-          if (dehy.length > 0 && !dehy.includes('none')) return { action: 'branch', branchToSymptomId: 'DEH-201' };
+          const dehyKeys = DEHYDRATION_SIGNS_OPTIONS.map(o => o.value).filter(v => v !== 'none' && v !== 'vitals_known');
+          
+          // Check for vitals concern
+          if (dehy.includes('vitals_known') && answers['vitals_input']) {
+              const vitals = parseVitalsFromText(answers['vitals_input']);
+              if (vitals.hrHigh || vitals.bpLow) return { action: 'branch', branchToSymptomId: 'DEH-201' };
+          }
+          
+          if (dehy.some((s: string) => dehyKeys.includes(s))) return { action: 'branch', branchToSymptomId: 'DEH-201' };
           return { action: 'continue' };
       }
   },
@@ -664,8 +824,10 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       category: 'other',
       icon: Icons.Rash,
       screeningQuestions: [
-          { id: 'loc', text: 'Where is the rash?', type: 'multiselect', options: [{label: 'Face', value: 'face'}, {label: 'Chest', value: 'chest'}, {label: 'Arms', value: 'arms'}, {label: 'Legs', value: 'legs'}, {label: 'Infusion Site', value: 'infusion'}]},
-          { id: 'infusion_sx', text: 'If Infusion Site, do you have:', type: 'multiselect', options: [{label: 'Swelling', value: 'swelling'}, {label: 'Redness', value: 'redness'}, {label: 'Open Wound', value: 'wound'}, {label: 'None', value: 'none'}], condition: (a) => a['loc']?.includes('infusion') },
+          { id: 'loc', text: 'Where is the rash?', type: 'multiselect', options: [{label: 'Face', value: 'face'}, {label: 'Chest', value: 'chest'}, {label: 'Arms', value: 'arms'}, {label: 'Legs', value: 'legs'}, {label: 'Infusion Site', value: 'infusion'}, {label: 'Other', value: 'other'}]},
+          { id: 'loc_other', text: 'Please describe the location:', type: 'text', condition: (a) => a['loc']?.includes('other') },
+          { id: 'infusion_sx', text: 'If Infusion Site, do you have:', type: 'multiselect', options: [{label: 'Swelling', value: 'swelling'}, {label: 'Redness', value: 'redness'}, {label: 'Open Wound', value: 'wound'}, {label: 'Other', value: 'other'}, {label: 'None', value: 'none'}], condition: (a) => a['loc']?.includes('infusion') },
+          { id: 'infusion_sx_other', text: 'Please describe:', type: 'text', condition: (a) => a['loc']?.includes('infusion') && a['infusion_sx']?.includes('other') },
           { id: 'face_breath', text: 'Is there any trouble breathing?', type: 'yes_no', condition: (a) => a['loc']?.includes('face') },
           { id: 'coverage', text: 'Does the rash cover more than 30% of your body?', type: 'yes_no' },
           { id: 'adl', text: 'Does the rash affect your daily activities (ADLs)?', type: 'yes_no' },
@@ -691,8 +853,9 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
           { id: 'days', text: 'How many days have you had a rash?', type: 'number' },
           { id: 'worse', text: 'Is it getting worse?', type: 'yes_no' },
           { id: 'symptoms', text: 'Are you experiencing any of these?', type: 'multiselect', options: [
-              {label: 'I feel unwell', value: 'unwell'}, {label: 'Skin cracked', value: 'cracked'}, {label: 'Liquid from rash', value: 'liquid'}, {label: 'None', value: 'none'}
-          ]}
+              {label: 'I feel unwell', value: 'unwell'}, {label: 'Skin cracked', value: 'cracked'}, {label: 'Liquid from rash', value: 'liquid'}, {label: 'Other', value: 'other'}, {label: 'None', value: 'none'}
+          ]},
+          { id: 'symptoms_other', text: 'Please describe:', type: 'text', condition: (a) => a['symptoms']?.includes('other') }
       ],
       evaluateFollowUp: (answers) => {
           const symps = answers['symptoms'] || [];
@@ -710,8 +873,10 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
           { id: 'loc', text: 'Where does it hurt?', type: 'multiselect', options: [
               {label: 'Chest', value: 'chest'}, {label: 'Head', value: 'head'}, {label: 'Stomach', value: 'stomach'}, 
               {label: 'Legs/Calf', value: 'legs'}, {label: 'Mouth/Throat', value: 'mouth'}, {label: 'Joints/Muscles', value: 'joints'},
-              {label: 'Nerve (Burning/Tingling)', value: 'nerve'}, {label: 'General/Fatigue', value: 'fatigue'}, {label: 'Port Site', value: 'port'}
+              {label: 'Nerve (Burning/Tingling)', value: 'nerve'}, {label: 'General/Fatigue', value: 'fatigue'}, {label: 'Port Site', value: 'port'},
+              {label: 'Other', value: 'other'}
           ]},
+          { id: 'loc_other', text: 'Please describe the location:', type: 'text', condition: (a) => a['loc']?.includes('other') },
           { id: 'severity', text: 'Rate your pain', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]},
           { id: 'interfere', text: 'Does it interfere with daily activities?', type: 'yes_no' },
           { id: 'temp', text: 'What is your temperature? (Number)', type: 'number' }
@@ -809,7 +974,8 @@ export const SYMPTOMS: Record<string, SymptomDef> = {
       category: 'other',
       icon: Icons.Nerve,
       screeningQuestions: [
-          { id: 'duration', text: 'How long have you had numbness and tingling?', type: 'choice', options: [{label: 'Started Today', value: 'today'}, {label: '1-3 days', value: '1-3d'}, {label: '4-7 days', value: '4-7d'}, {label: '> 1 week', value: '>1w'}] },
+          { id: 'duration', text: 'How long have you had numbness and tingling?', type: 'choice', options: [{label: 'Started Today', value: 'today'}, {label: '1-3 days', value: '1-3d'}, {label: '4-7 days', value: '4-7d'}, {label: '> 1 week', value: '>1w'}, {label: 'Other', value: 'other'}] },
+          { id: 'duration_other', text: 'Please describe:', type: 'text', condition: (a) => a['duration'] === 'other' },
           { id: 'interfere', text: 'Does the numbness/tingling interfere with your normal activities?', type: 'yes_no' },
           { id: 'severity', text: 'Rate your symptoms', type: 'choice', options: [{label: 'Mild', value: 'mild'}, {label: 'Moderate', value: 'mod'}, {label: 'Severe', value: 'sev'}]}
       ],

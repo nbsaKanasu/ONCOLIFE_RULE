@@ -192,9 +192,22 @@ const useSymptomChecker = () => {
   };
 
   const startSession = (symptomIds: string[]) => {
-      setSymptomQueue(symptomIds);
-      if (symptomIds.length > 0) {
-          const firstId = symptomIds[0];
+      // Priority Routing: If both Nausea (NAU-203) and Vomiting (VOM-204) are selected,
+      // process Vomiting first as per oncologist requirement
+      const priorityOrder: Record<string, number> = {
+          'VOM-204': 1,  // Vomiting should come before Nausea
+          'NAU-203': 2,  // Nausea comes after Vomiting
+      };
+      
+      const sortedIds = [...symptomIds].sort((a, b) => {
+          const aPriority = priorityOrder[a] ?? 999;
+          const bPriority = priorityOrder[b] ?? 999;
+          return aPriority - bPriority;
+      });
+      
+      setSymptomQueue(sortedIds);
+      if (sortedIds.length > 0) {
+          const firstId = sortedIds[0];
           startSymptomLogic(firstId);
       }
   };
@@ -735,8 +748,8 @@ function App() {
                             <div className="bg-red-50 border border-red-100 rounded-3xl p-8 shadow-xl text-center relative overflow-hidden">
                                 <div className="absolute top-0 right-0 w-32 h-32 bg-red-200 rounded-full blur-3xl opacity-20 -mr-10 -mt-10"></div>
                                 <div className="text-6xl mb-4 animate-bounce">🚨</div>
-                                <h2 className="text-3xl font-extrabold text-red-700 mb-2 tracking-tight">Emergency Detected</h2>
-                                <p className="text-red-800 text-lg font-semibold mb-8">Immediate Action Required: Call 911. If you feel it is appropriate to call your care team first, please do so.</p>
+                                <h2 className="text-3xl font-extrabold text-red-700 mb-2 tracking-tight">Immediate Emergency</h2>
+                                <p className="text-red-800 text-lg font-semibold mb-8">Call 911 or your Care Team right away. This is an emergency.</p>
                                 <div className="bg-white rounded-2xl p-5 border border-red-100 text-left shadow-sm">
                                     <p className="text-[10px] text-red-400 uppercase font-bold mb-3 tracking-widest">Clinical Reasoning:</p>
                                     <ul className="space-y-2 text-red-900 text-sm font-medium">
@@ -753,8 +766,8 @@ function App() {
                         {highestSeverity === 'notify_care_team' && (
                             <div className="bg-amber-50 border border-amber-100 rounded-3xl p-8 shadow-xl text-center">
                                 <div className="text-6xl mb-4">⚠️</div>
-                                <h2 className="text-3xl font-extrabold text-amber-700 mb-2 tracking-tight">Notify Care Team</h2>
-                                <p className="text-amber-900 text-lg font-medium mb-8">Contact your oncology provider immediately.</p>
+                                <h2 className="text-3xl font-extrabold text-amber-700 mb-2 tracking-tight">Clinical Alert</h2>
+                                <p className="text-amber-900 text-lg font-medium mb-8">I have captured these details and am notifying your care team. Please keep your phone nearby for a call from the clinic.</p>
                                 <div className="bg-white rounded-2xl p-5 border border-amber-100 text-left shadow-sm">
                                     <p className="text-[10px] text-amber-400 uppercase font-bold mb-3 tracking-widest">Clinical Reasoning:</p>
                                     <ul className="space-y-2 text-amber-900 text-sm font-medium">
@@ -771,8 +784,9 @@ function App() {
                         {highestSeverity === 'refer_provider' && (
                             <div className="bg-blue-50 border border-blue-100 rounded-3xl p-8 shadow-xl text-center">
                                 <div className="text-6xl mb-4">ℹ️</div>
-                                <h2 className="text-3xl font-extrabold text-blue-700 mb-2 tracking-tight">Contact Provider</h2>
-                                <p className="text-blue-900 mb-8 text-lg">Contact your provider during office hours for guidance.</p>
+                                <h2 className="text-3xl font-extrabold text-blue-700 mb-2 tracking-tight">Non-Urgent</h2>
+                                <p className="text-blue-900 mb-6 text-lg">Please let your care team know about these symptoms at your next appointment.</p>
+                                <p className="text-blue-800 mb-8 text-sm font-medium">This chatbot is not a substitute for medical care. If you feel unsafe, please call 911.</p>
                                 <div className="bg-white rounded-2xl p-5 border border-blue-100 text-left shadow-sm">
                                     <p className="text-[10px] text-blue-400 uppercase font-bold mb-3 tracking-widest">Notes:</p>
                                     <ul className="space-y-2 text-blue-900 text-sm font-medium">
@@ -789,9 +803,9 @@ function App() {
                         {highestSeverity === 'none' && (
                             <div className="bg-green-50 border border-green-100 rounded-3xl p-8 shadow-xl text-center">
                                 <div className="text-6xl mb-4">✅</div>
-                                <h2 className="text-3xl font-extrabold text-green-700 mb-2 tracking-tight">No Urgent Issues</h2>
-                                <p className="text-green-900 mb-4 text-lg">Based on your answers, no immediate action is required.</p>
-                                <p className="text-sm text-green-700 font-medium">Monitor your symptoms. If they worsen, start a new check.</p>
+                                <h2 className="text-3xl font-extrabold text-green-700 mb-2 tracking-tight">Non-Urgent</h2>
+                                <p className="text-green-900 mb-4 text-lg">Please let your care team know about these symptoms at your next appointment.</p>
+                                <p className="text-sm text-green-700 font-medium">This chatbot is not a substitute for medical care. If you feel unsafe, please call 911.</p>
                             </div>
                         )}
 

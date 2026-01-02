@@ -290,7 +290,7 @@ const SevereCheckDialog: React.FC<{
       <div className="dialog-box max-w-md" onClick={e => e.stopPropagation()}>
         {/* Ruby Avatar */}
         <div className="flex items-center justify-center mb-4">
-          <div className="ruby-avatar w-14 h-14 text-xl">R</div>
+          <RubyAvatar size="lg" />
         </div>
         
         <h3 id="severe-check-title" className="text-lg font-semibold text-slate-800 mb-2 text-center">
@@ -326,6 +326,65 @@ const SevereCheckDialog: React.FC<{
           </button>
         </div>
       </div>
+    </div>
+  );
+};
+
+// --- Ruby Avatar Component (SVG Icon) ---
+const RubyAvatar: React.FC<{ size?: 'sm' | 'md' | 'lg' | 'xl'; className?: string }> = ({ size = 'md', className = '' }) => {
+  const sizeClasses = {
+    sm: 'w-8 h-8',
+    md: 'w-10 h-10',
+    lg: 'w-14 h-14',
+    xl: 'w-20 h-20'
+  };
+  
+  return (
+    <div className={`ruby-avatar ${sizeClasses[size]} ${className}`} aria-hidden="true">
+      {/* Ruby gemstone icon with nurse cap */}
+      <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full p-1.5">
+        {/* Nurse cap */}
+        <path d="M12 8h16v4c0 1-1 2-2 2H14c-1 0-2-1-2-2V8z" fill="white" opacity="0.9"/>
+        <path d="M18 9h4v3h-4z" fill="#ef4444"/>
+        <rect x="19" y="8" width="2" height="5" fill="#ef4444"/>
+        <rect x="17" y="10" width="6" height="2" fill="#ef4444"/>
+        
+        {/* Face circle */}
+        <circle cx="20" cy="22" r="10" fill="white" opacity="0.95"/>
+        
+        {/* Friendly eyes */}
+        <ellipse cx="16" cy="20" rx="1.5" ry="2" fill="#0d9488"/>
+        <ellipse cx="24" cy="20" rx="1.5" ry="2" fill="#0d9488"/>
+        <circle cx="16.5" cy="19.5" r="0.5" fill="white"/>
+        <circle cx="24.5" cy="19.5" r="0.5" fill="white"/>
+        
+        {/* Warm smile */}
+        <path d="M16 25c0 0 2 3 4 3s4-3 4-3" stroke="#0d9488" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+        
+        {/* Rosy cheeks */}
+        <circle cx="13" cy="23" r="1.5" fill="#fca5a5" opacity="0.6"/>
+        <circle cx="27" cy="23" r="1.5" fill="#fca5a5" opacity="0.6"/>
+        
+        {/* Stethoscope hint */}
+        <path d="M26 28c2 1 3 3 3 5" stroke="white" strokeWidth="1" opacity="0.6"/>
+      </svg>
+    </div>
+  );
+};
+
+// --- Patient Avatar Component ---
+const PatientAvatar: React.FC<{ size?: 'sm' | 'md'; className?: string }> = ({ size = 'md', className = '' }) => {
+  const sizeClasses = {
+    sm: 'w-8 h-8',
+    md: 'w-10 h-10'
+  };
+  
+  return (
+    <div className={`${sizeClasses[size]} bg-slate-200 rounded-xl flex items-center justify-center ${className}`} aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-slate-500">
+        <circle cx="12" cy="8" r="4" fill="currentColor"/>
+        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" fill="currentColor" opacity="0.7"/>
+      </svg>
     </div>
   );
 };
@@ -386,28 +445,34 @@ const ChatBubble: React.FC<{ message: Message }> = ({ message }) => {
       aria-label={isBot ? 'Ruby says' : 'Your response'}
     >
       {isBot && (
-        <div className="ruby-avatar mr-3 shrink-0" aria-hidden="true">R</div>
+        <RubyAvatar size="md" className="mr-3 shrink-0" />
       )}
-      <div className={`max-w-[80%] leading-relaxed ${
+      <div className={`max-w-[75%] leading-relaxed ${
         message.isAlert 
           ? 'bg-red-50 border border-red-200 text-red-900 p-4 rounded-2xl' 
           : isBot 
             ? 'ruby-bubble text-white text-sm' 
-            : 'bg-stone-100 text-stone-800 p-4 rounded-2xl rounded-tr-sm text-sm'
+            : 'bg-teal-600 text-white p-4 rounded-2xl rounded-tr-sm text-sm shadow-sm'
       }`}>
         {isBot && !message.isAlert && (
           <span className="text-teal-200 text-xs font-medium block mb-1">Ruby</span>
         )}
+        {!isBot && (
+          <span className="text-teal-200 text-xs font-medium block mb-1">You</span>
+        )}
         {message.isAlert && <span className="sr-only">Alert: </span>}
         {message.content}
       </div>
+      {!isBot && (
+        <PatientAvatar size="md" className="ml-3 shrink-0" />
+      )}
     </div>
   );
 };
 
 const TypingIndicator = () => (
   <div className="flex w-full justify-start mb-4">
-    <div className="ruby-avatar mr-3 shrink-0" aria-hidden="true">R</div>
+    <RubyAvatar size="md" className="mr-3 shrink-0" />
     <div className="ruby-bubble flex space-x-1.5 items-center h-12 px-5">
       <div className="w-2 h-2 bg-white/60 rounded-full typing-dot"></div>
       <div className="w-2 h-2 bg-white/60 rounded-full typing-dot"></div>
@@ -1204,7 +1269,7 @@ function App() {
       >
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center space-x-3">
-                <div className="ruby-avatar w-9 h-9 text-base" aria-hidden="true">R</div>
+                <RubyAvatar size="sm" />
                 <div>
                     <h1 className="font-semibold text-stone-800 text-base leading-tight">OncoLife</h1>
                     <p className="text-teal-600 text-[10px] font-semibold">Ruby — Your Care Assistant</p>
@@ -1325,7 +1390,7 @@ function App() {
           <div className="animate-fade-in min-h-full flex flex-col">
             {/* Ruby Header */}
             <div className="ruby-header px-4 pt-10 pb-8 text-center">
-              <div className="ruby-avatar w-20 h-20 mx-auto mb-4 text-3xl shadow-lg">R</div>
+              <RubyAvatar size="xl" className="mx-auto mb-4 shadow-lg" />
               <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
                 Hi, I'm Ruby! 💎
               </h1>
@@ -1422,7 +1487,7 @@ function App() {
                 {/* Ruby Header - Simplified since we came from prescreen */}
                 <div className="ruby-header px-4 pt-6 pb-6 text-center">
                     <div className="max-w-3xl mx-auto flex items-center justify-center">
-                        <div className="ruby-avatar w-10 h-10 text-lg mr-3">R</div>
+                        <RubyAvatar size="md" className="mr-3" />
                         <div className="text-left">
                           <h2 className="text-xl font-bold text-white">
                             Select a Symptom
@@ -1634,17 +1699,33 @@ function App() {
             </div>
         ) : (
             /* --- CHAT VIEW --- */
-            <div className="p-4 max-w-2xl mx-auto w-full" ref={mainContentRef}>
-                <div className="sticky top-0 bg-slate-50 z-10 pt-4 pb-2">
-                   <ProgressBar stage={stage} />
+            <div className="flex flex-col h-full max-w-2xl mx-auto w-full" ref={mainContentRef}>
+                {/* Chat Header - Fixed at top */}
+                <div className="sticky top-0 bg-white z-10 border-b border-slate-200 shadow-sm">
+                   <div className="px-4 py-3">
+                     <div className="flex items-center">
+                       <RubyAvatar size="sm" className="mr-3" />
+                       <div>
+                         <h2 className="font-semibold text-slate-800 text-sm">Chatting with Ruby</h2>
+                         <p className="text-xs text-teal-600 flex items-center">
+                           <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1 animate-pulse"></span>
+                           Online • Your care assistant
+                         </p>
+                       </div>
+                     </div>
+                   </div>
+                   <div className="px-4 pb-2">
+                     <ProgressBar stage={stage} />
+                   </div>
                 </div>
 
-                <div role="log" aria-live="polite" aria-label="Chat conversation">
-                {history.map((msg) => (
-                    <ChatBubble key={msg.id} message={msg} />
-                ))}
+                {/* Chat Messages - Scrollable area */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-1" role="log" aria-live="polite" aria-label="Chat conversation">
+                  {history.map((msg) => (
+                      <ChatBubble key={msg.id} message={msg} />
+                  ))}
+                  {isTyping && <TypingIndicator />}
                 </div>
-                {isTyping && <TypingIndicator />}
                 
                 {stage === 'complete' && (
                     <div className="animate-fade-in mt-6 mb-6">
